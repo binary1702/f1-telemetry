@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F1 25 Telemetry</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #111; color: #eee; font: 14px/1.4 ui-monospace, Menlo, monospace; }
+  body { padding: 12px 20px; box-sizing: border-box; display: flex; flex-direction: column; }
+  h1 { font-size: 16px; margin: 0 0 8px; letter-spacing: 0.1em; }
+  #status { margin-bottom: 16px; }
+  #status .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; background: #666; }
+  #status.live .dot { background: #2ecc40; }
+  #status.waiting .dot { background: #f39c12; }
+  #status.disconnected .dot { background: #e74c3c; }
+  #track-name { color: #888; margin-left: 16px; }
+  .layout { display: grid; grid-template-columns: 260px 1fr 460px; gap: 20px; align-items: start; flex: 1; min-height: 0; overflow: hidden; }
+  .layout > div { min-height: 0; overflow: hidden; }
+  .row { margin-bottom: 12px; }
+  .label { font-size: 11px; color: #888; letter-spacing: 0.15em; }
+  .value { font-size: 26px; }
+  .sub { font-size: 14px; color: #aaa; }
+  .bar { font-size: 18px; letter-spacing: 1px; }
+  .bar .throttle-fill { color: #2ecc40; }
+  .bar .brake-fill { color: #e74c3c; }
+  .bar .steer-left { color: #9b59b6; }
+  .bar .steer-right { color: #9b59b6; }
+  #mph { color: #f39c12; }
+  .bar .steer-center { color: #888; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; margin-bottom: 12px; }
+  .grid2 .value { font-size: 20px; }
+  canvas { background: #0a0a0a; border: 1px solid #333; width: 100%; max-width: 100%; display: block; }
+  #map { cursor: pointer; }
+  .hint { font-size: 11px; color: #666; margin-top: 6px; }
+  /* tyre panel: FL FR / RL RR laid out like the car from above */
+  .tyres { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; max-width: 220px; margin-bottom: 12px; }
+  .tyre { border: 1px solid #333; padding: 6px 8px; border-radius: 4px; }
+  .tyre .pos { font-size: 10px; color: #888; }
+  .tyre .t { font-size: 22px; }
+  .tyre .i { font-size: 11px; color: #aaa; }
+  .cold { border-color: #3498db; } .ok { border-color: #2ecc40; } .hot { border-color: #e67e22; } .crit { border-color: #e74c3c; }
+  .fuel { margin-bottom: 12px; }
+  .fuel .value { font-size: 20px; }
+  .neg { color: #e74c3c; }
+  body.stale .layout { opacity: 0.35; }
+  body.stale #status::after { content: " — no packets from the game; values below are stale"; color: #888; }
+  table { border-collapse: collapse; font-size: 11px; margin-top: 4px; }
+  th, td { text-align: right; padding: 2px 8px 2px 0; }
+  th { font-size: 9px; color: #666; letter-spacing: 0.05em; font-weight: normal; }
+  td.best { color: #b57bee; }
+  tr.invalid td { color: #999; background: #3a1212; }
+  .setup { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; font-size: 11px; margin-top: 4px; }
+  .setup .k { color: #888; font-size: 9px; letter-spacing: 0.05em; }
+  /* coach: sized to be read from the sofa. Big delta, bigger brake countdown, readable log. */
+  .coach { border: 1px solid #333; border-radius: 6px; padding: 10px 14px 6px; margin-bottom: 14px; background: #0d0d0d; }
+  .coach .label { font-size: 12px; }
+  .coach .row { margin-bottom: 8px; }
+  .coach .big { font-size: 72px; line-height: 1; font-weight: bold; letter-spacing: -0.02em; }
+  .coach .big.flat { color: #aaa; }
+  .coach .next { font-size: 22px; line-height: 1.3; color: #aaa; }
+  .coach .next .brake { font-size: 44px; line-height: 1.1; color: #eee; font-weight: bold; }
+  .coach .next .zone { font-size: 44px; line-height: 1.1; font-weight: bold; }
+  .coach .next b { color: #eee; font-weight: bold; font-size: 28px; }
+  .coach table { width: 100%; font-size: 15px; margin-top: 6px; }
+  .coach th { font-size: 11px; color: #888; }
+  .coach td { padding: 2px 10px 2px 0; }
+  .coach .gain { color: #2ecc40; } .coach .loss { color: #e74c3c; }
+  .coach td.dim { color: #777; }
+  .coach .hint { font-size: 10px; }
+  .coach .seq { font-size: 14px; color: #aaa; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .coach .seq b { font-size: 14px; }
+  .coach .lesson { font-size: 20px; line-height: 1.25; color: #eee; }
+  .coach .lesson .t { font-weight: bold; color: #f1c40f; }
+  .coach .lesson .better { color: #2ecc40; } .coach .lesson .worse { color: #e74c3c; } .coach .lesson .same { color: #aaa; }
+  .coach .finding { font-size: 15px; line-height: 1.35; color: #ccc; margin-top: 4px; }
+  .coach .finding .title { font-size: 18px; font-weight: bold; }
+  .coach .finding .next { font-size: 15px; color: #eee; }
+  .review { border: 1px solid #333; border-radius: 6px; padding: 8px 10px; margin-top: 6px; background: #0a0a0a; }
+  .review table { font-size: 13px; width: 100%; } .review td, .review th { padding: 1px 8px 1px 0; }
+  .review td.cur { color: #eee; } .review td.ref { color: #888; }
+  #review-chart { background: #0d0d0d; border: 1px solid #222; margin-top: 6px; }
+</style>
+</head>
+<body>
+<h1>F1 25 TELEMETRY <a href="/" style="color:#888;font-weight:normal;font-size:13px;margin-left:16px">← coach</a> <a href="/compare" style="color:#888;font-weight:normal;font-size:13px;margin-left:12px">compare laps →</a> <a href="/setups" style="color:#888;font-weight:normal;font-size:13px;margin-left:12px">setups →</a></h1>
+<div id="status" class="disconnected"><span class="dot"></span><span id="status-text">DISCONNECTED</span><span id="track-name"></span></div>
+
+<div class="layout">
+  <div>
+    <div class="grid2">
+      <div><div class="label">POSITION</div><div class="value" id="position">--</div></div>
+      <div><div class="label">LAP</div><div class="value" id="lap">--</div></div>
+      <div><div class="label">CURRENT</div><div class="value" id="cur-lap">--</div></div>
+      <div><div class="label">LAST</div><div class="value" id="last-lap">--</div></div>
+      <div><div class="label">S1</div><div class="value" id="s1">--</div></div>
+      <div><div class="label">S2</div><div class="value" id="s2">--</div></div>
+      <div><div class="label">S3</div><div class="value" id="s3">--</div></div>
+      <div><div class="label">LAT G <span class="sub" style="font-size:10px">peak</span></div><div class="value"><span id="glat">--</span> <span class="sub" id="glat-peak"></span></div></div>
+    </div>
+
+    <div class="row"><div class="label" style="color:#f39c12">SPEED</div><div class="value"><span id="mph">0</span> <span style="color:#f39c12">MPH</span></div><span id="gear" style="margin-left:12px;font-size:32px;color:#fff;">N</span></div>
+    <div class="row"><div class="label" style="color:#2ecc40">THROTTLE</div><div class="bar"><span id="throttle-bar">░░░░░░░░░░</span> <span id="throttle">0%</span></div></div>
+    <div class="row"><div class="label" style="color:#e74c3c">BRAKE</div><div class="bar"><span id="brake-bar">░░░░░░░░░░</span> <span id="brake">0%</span></div></div>
+    <div class="row"><div class="label" style="color:#9b59b6">STEERING</div><div class="bar" style="white-space:nowrap;"><span id="steer-bar">░░░░░│░░░░░</span> <span id="steer"></span></div></div>
+    <div class="row"><div class="label">DRS</div><div class="value" id="drs">OFF</div></div>
+    <div class="row"><div class="label">BALANCE <span id="bal-text" style="letter-spacing:0;color:#eee"></span></div>
+      <div class="bar" style="white-space:nowrap;font-size:15px"><span style="color:#e67e22">UNDER</span> <span id="bal-bar">░░░░░│░░░░░</span> <span style="color:#9b59b6">OVER</span></div>
+      <span id="bal-lap" style="display:none"></span>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;height:100%;">
+    <div class="label" style="margin-bottom:8px;">TRACK MAP <span id="map-src" class="sub"></span></div>
+    <canvas id="map" width="800" height="800" style="flex:1;min-height:0;"></canvas>
+    <div class="label" style="margin:8px 0 4px;">THIS LAP vs <span class="sub">reference grey</span> · <span style="color:#f39c12">MPH</span> <span style="color:#2ecc40">THROTTLE</span> <span style="color:#e74c3c">BRAKE</span> <span style="color:#9b59b6">STEER</span></div>
+    <canvas id="traces" width="1000" height="230" style="aspect-ratio:auto;height:230px;flex:none;"></canvas>
+  </div>
+
+  <div>
+    <div class="coach">
+      <div class="label">COACH · vs <span id="coach-ref" class="sub">no reference yet</span></div>
+      <div class="row"><div class="label">GAP TO YOUR BEST LAP · + behind · − ahead</div><div class="big" id="live-delta">--</div></div>
+      <div class="row" id="session-row" style="display:none"><div class="label">LIVE Δ vs best this session · <span id="coach-session" class="sub"></span></div><div class="big" id="live-delta-s" style="font-size:44px">--</div></div>
+
+      <div class="row">
+        <div class="label">WORK ON THIS</div>
+        <div class="lesson" id="lesson">one full lap from the line first</div>
+        <canvas id="lesson-bar" width="420" height="66" style="height:66px;border:0;background:transparent;display:none"></canvas>
+      </div>
+
+      <div class="row">
+        <div class="label">COMING UP · <span class="sub">your best lap's sequence</span></div>
+        <div class="next" id="coach-next">--</div>
+        <canvas id="seq-strip" width="420" height="34" style="height:34px;border:0;background:transparent"></canvas>
+        <div class="finding" id="coach-tip"></div>
+      </div>
+
+      <div class="review">
+        <div class="label">LAST CORNER · <span id="review-title">click a corner on the map, or wait for the next one</span></div>
+        <canvas id="review-chart" width="420" height="96" style="height:96px;border:0;background:transparent"></canvas>
+        <canvas id="review-bars" width="420" height="150" style="height:150px;border:0;background:transparent;margin-top:4px"></canvas>
+        <div class="finding" id="review-finding"></div>
+      </div>
+    </div>
+
+    <div class="label">LAPS <span id="laps-note" class="sub"></span>
+      <button id="valid-only" style="background:#1a1a1a;color:#eee;border:1px solid #444;padding:1px 8px;font:inherit;font-size:10px;cursor:pointer;margin-left:8px">VALID ONLY</button>
+    </div>
+    <table id="laps">
+      <thead><tr><th>#</th><th>TIME</th><th>S1</th><th>S2</th><th>S3</th><th>TYRE</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="label" style="margin-top:16px;cursor:pointer;" onclick="toggleSetup()">
+      <span id="setup-toggle">&#9654;</span> SETUP <span id="setup-hash" class="sub" style="font-size:10px"></span>
+      <button id="setup-copy" onclick="event.stopPropagation(); copySetup()" style="background:#1a1a1a;color:#eee;border:1px solid #444;padding:1px 8px;font:inherit;font-size:10px;cursor:pointer;margin-left:8px">COPY</button>
+    </div>
+    <div id="setup" class="setup" style="display:none;"></div>
+  </div>
+</div>
+
+<script type="module">
+  import { cornerSegments, cornerMetrics, slipRateAt, brakeEvents, coachBraking, progress, pickLesson, metricValue, at } from "/analysis.js";
+
+  const STALE_MS = 1000;
+  const $ = (id) => document.getElementById(id);
+  const status = $("status");
+  let lastPacketAt = 0;
+  let socket = null;
+
+  function setStatus(cls, text) { status.className = cls; $("status-text").textContent = text; }
+  function bar(f, cls) {
+    const n = Math.max(0, Math.min(10, Math.round(f * 10)));
+    const fill = "█".repeat(n), empty = "░".repeat(10 - n);
+    return `<span class="${cls}">${fill}</span>${empty}`;
+  }
+  function gearLabel(g) { return g === 0 ? "N" : g === -1 ? "R" : String(g); }
+  function fmtLap(ms) {
+    if (!ms) return "--";
+    const m = Math.floor(ms / 60000), s = ((ms % 60000) / 1000).toFixed(3).padStart(6, "0");
+    return `${m}:${s}`;
+  }
+  function fmtGap(ms) { return ms ? "+" + (ms / 1000).toFixed(3) : "--"; }
+
+  // ---- telemetry panel ----
+  // Steering: game value is -1 (full left) .. +1 (full right). Orange = left, purple = right.
+  function steerBar(s) {
+    const n = Math.round(Math.abs(s) * 5);
+    const leftEmpty = "░".repeat(5 - n), leftFill = "█".repeat(n);
+    const rightFill = "█".repeat(n), rightEmpty = "░".repeat(5 - n);
+    const left = s < 0 ? `${leftEmpty}<span class="steer-left">${leftFill}</span>` : "░".repeat(5);
+    const right = s > 0 ? `<span class="steer-right">${rightFill}</span>${rightEmpty}` : "░".repeat(5);
+    return `${left}<span class="steer-center">│</span>${right}`;
+  }
+  // Balance from the Motion stream. See analysis.js "balance" for the physics: slip rate is the
+  // body yaw rate minus the path's turn rate; positive = rear sliding, negative = front washing.
+  // The yaw sign convention is calibrated live from the correlation of yaw rate and lateral g.
+  const SLIP_FULL = 0.6; // rad/s at the end of the bar
+  let yawSignSum = 0, slipEma = 0, bal = { lapNum: -1, rear: 0, front: 0, peakG: 0, run: 0, runSince: 0 };
+  function renderMotion(m) {
+    const gAbs = Math.abs(m.gLat);
+    $("glat").textContent = gAbs.toFixed(1);
+    if (gAbs > bal.peakG) { bal.peakG = gAbs; $("glat-peak").textContent = gAbs.toFixed(1); }
+    if (gAbs > 1) yawSignSum += Math.sign(m.gLat) * Math.sign(m.yawRate || 0);
+    const yawSign = yawSignSum < 0 ? -1 : 1;
+    const sr = lastTelemetry ? slipRateAt(m.gLat, m.yawRate || 0, lastTelemetry.speed, yawSign) : null;
+    if (sr === null) { slipEma *= 0.8; } else { slipEma += (sr - slipEma) * 0.25; }
+    // bar: 5 cells each side of centre
+    const n = Math.max(-5, Math.min(5, Math.round((slipEma / SLIP_FULL) * 5)));
+    const left = n < 0 ? "░".repeat(5 + n) + `<span style="color:#e67e22">${"█".repeat(-n)}</span>` : "░".repeat(5);
+    const right = n > 0 ? `<span style="color:#9b59b6">${"█".repeat(n)}</span>` + "░".repeat(5 - n) : "░".repeat(5);
+    $("bal-bar").innerHTML = left + `<span class="steer-center">│</span>` + right;
+    $("bal-text").textContent = sr === null ? "" : Math.abs(slipEma) < 0.15 ? "" : slipEma > 0 ? "OVERSTEER" : "UNDERSTEER";
+    // event counting: a run of the same sign lasting over 150 ms
+    const dir = sr === null ? 0 : slipEma > 0.3 ? 1 : slipEma < -0.3 ? -1 : 0;
+    const now = performance.now();
+    if (dir !== bal.run) {
+      if (bal.run && now - bal.runSince > 150) {
+        bal.run > 0 ? bal.rear++ : bal.front++; renderBalLap();
+        // caution marker on the map where it happened (one per 40 m)
+        const d = lapInfo && lapInfo.player ? lapInfo.player.lapDistance : null;
+        if (d !== null && d >= 0 && !live.slides.some((s) => Math.abs(s.d - d) < 40)) live.slides.push({ d, dir: bal.run });
+      }
+      bal.run = dir; bal.runSince = now;
+    }
+  }
+  function renderBalLap() { $("bal-lap").textContent = `this lap · ${bal.rear} rear slides · ${bal.front} front washes`; }
+  function resetBalLap(lapNum) { bal = { lapNum, rear: 0, front: 0, peakG: 0, run: 0, runSince: 0 }; $("glat-peak").textContent = ""; renderBalLap(); }
+  let lastTelemetry = null;
+  function renderTelemetry(t) {
+    lastTelemetry = t;
+    $("mph").textContent = Math.round(t.speed * 0.621371);
+    $("gear").textContent = t.gear === 0 ? "N" : t.gear === -1 ? "R" : t.gear;
+    $("throttle-bar").innerHTML = bar(t.throttle, "throttle-fill");
+    $("throttle").textContent = Math.round(t.throttle * 100) + "%";
+    $("brake-bar").innerHTML = bar(t.brake, "brake-fill");
+    $("brake").textContent = Math.round(t.brake * 100) + "%";
+    const pct = Math.round(Math.abs(t.steer) * 100);
+    $("steer-bar").innerHTML = steerBar(t.steer);
+    $("steer").textContent = pct < 1 ? "" : (t.steer < 0 ? "L " : "R ") + pct + "%";
+    $("drs").textContent = t.drs ? "ON" : lastStatus && lastStatus.drsAllowed ? "ALLOWED" : "OFF";
+  }
+  let lastStatus = null;
+  function renderStatus(s) { lastStatus = s; }
+
+  // ---- lap / position panel ----
+  let lapInfo = null, session = null;
+  function renderLap(l) {
+    lapInfo = l;
+    const p = l.player;
+    if (p.lapNum !== bal.lapNum) resetBalLap(p.lapNum);
+    coachOnLap(p);
+    const active = l.cars.filter((c) => c.active).length;
+    $("position").textContent = `P${p.position}` + (active ? ` / ${active}` : "");
+    $("lap").textContent = session && session.totalLaps ? `${p.lapNum} / ${session.totalLaps}` : String(p.lapNum);
+    $("cur-lap").textContent = fmtLap(p.currentLapMs) + (p.lapInvalid ? " ✗" : "");
+    $("last-lap").textContent = fmtLap(p.lastLapMs);
+    // Sector times: show completed sectors, current sector is live
+    if (p.sector === 0) {
+      $("s1").textContent = fmtLap(p.currentLapMs);
+      $("s1").style.color = "#fff";
+      $("s2").textContent = "--"; $("s2").style.color = "#888";
+      $("s3").textContent = "--"; $("s3").style.color = "#888";
+    } else if (p.sector === 1) {
+      $("s1").textContent = fmtLap(p.sector1Ms); $("s1").style.color = "#2ecc40";
+      $("s2").textContent = fmtLap(p.currentLapMs - p.sector1Ms);
+      $("s2").style.color = "#fff";
+      $("s3").textContent = "--"; $("s3").style.color = "#888";
+    } else {
+      $("s1").textContent = fmtLap(p.sector1Ms); $("s1").style.color = "#2ecc40";
+      $("s2").textContent = fmtLap(p.sector2Ms); $("s2").style.color = "#2ecc40";
+      $("s3").textContent = fmtLap(p.currentLapMs - p.sector1Ms - p.sector2Ms);
+      $("s3").style.color = "#fff";
+    }
+  }
+  function renderSession(s) {
+    const changed = !session || session.trackId !== s.trackId;
+    session = s;
+    $("track-name").textContent = `${s.trackName} · ${s.trackLength} m · ${s.trackTemp}°C track`;
+    if (changed) { loadTrack(s.trackId); loadReference(s.trackId); }
+  }
+
+  // ---- laps table ----
+  let laps = [];
+  const CLOSE_MS = 3000;
+  // VALID ONLY: laps table, best markers and the coach reference ignore laps the game flagged
+  // invalid (track limits) or that were cut by a restart/flashback. Remembered in the browser.
+  let validOnly = localStorage.getItem("validOnly") === "1";
+  function usableLaps(ls) { return ls.filter((l) => !l.flags.includes("incomplete") && (!validOnly || l.valid)); }
+  function renderValidToggle() { const b = $("valid-only"); b.style.borderColor = validOnly ? "#2ecc40" : "#444"; b.style.color = validOnly ? "#2ecc40" : "#eee"; }
+  $("valid-only").onclick = () => { validOnly = !validOnly; localStorage.setItem("validOnly", validOnly ? "1" : "0"); renderValidToggle(); renderLaps(); if (session) loadReference(session.trackId); };
+  renderValidToggle();
+  function fmtSector(ms) {
+    if (!ms) return "--";
+    return (ms / 1000).toFixed(3);
+  }
+  function renderLaps() {
+    const tbody = $("laps").querySelector("tbody");
+    const usable = usableLaps(laps);
+    const best = (sel) => usable.length ? Math.min(...usable.map(sel)) : Infinity;
+    const bestLap = best((l) => l.lapTimeMs), bestS = [0, 1, 2].map((i) => best((l) => l.sectorsMs[i]));
+    // Only laps within CLOSE_MS of the best are shown; slow ones are noise when hunting tenths.
+    const shown = (bestLap === Infinity ? laps : laps.filter((l) => l.lapTimeMs - bestLap <= CLOSE_MS)).filter((l) => !validOnly || l.valid);
+    tbody.innerHTML = shown.map((l) => {
+      const lapCell = `<td class="${l.lapTimeMs === bestLap ? "best" : ""}">${fmtLap(l.lapTimeMs)}</td>`;
+      const sCells = l.sectorsMs.map((s, i) =>
+        `<td class="${s === bestS[i] ? "best" : ""}">${fmtSector(s)}</td>`
+      ).join("");
+      const tyre = l.compound[0] + l.tyreAgeLaps; // S0, M2, H5 etc
+      const cls = l.valid ? "" : "invalid";
+      return `<tr class="${cls}"><td>${l.lapNum}</td>${lapCell}${sCells}<td>${tyre}</td></tr>`;
+    }).join("");
+    const hidden = laps.length - shown.length;
+    $("laps-note").textContent = laps.length ? `best ${fmtLap(bestLap === Infinity ? 0 : bestLap)}` + (hidden ? ` · ${hidden} hidden` : "") : "";
+  }
+
+  // ---- garage setup ----
+  window.toggleSetup = toggleSetup; // called from the inline onclick; module scope is not global
+  function toggleSetup() {
+    const el = $("setup"), toggle = $("setup-toggle");
+    if (el.style.display === "none") {
+      el.style.display = "grid";
+      toggle.innerHTML = "&#9660;";
+    } else {
+      el.style.display = "none";
+      toggle.innerHTML = "&#9654;";
+    }
+  }
+  let lastSetup = null;
+  window.copySetup = async () => {
+    if (!lastSetup) return;
+    const lines = setupRows(lastSetup).map(([k, v]) => `${k}: ${v}`);
+    const text = `SETUP ${lastSetup.hash}` + (session ? ` · ${session.trackName}` : "") + "\n" + lines.join("\n");
+    const btn = $("setup-copy");
+    try { await navigator.clipboard.writeText(text); btn.textContent = "COPIED"; }
+    catch { btn.textContent = "FAILED"; }
+    setTimeout(() => (btn.textContent = "COPY"), 1200);
+  };
+  function setupRows(s) {
+    return [
+      ["FRONT WING", s.frontWing], ["REAR WING", s.rearWing],
+      ["DIFF ON THR", s.diffOnThrottle + "%"], ["DIFF OFF THR", s.diffOffThrottle + "%"],
+      ["FRONT CAMBER", s.frontCamber + "°"], ["REAR CAMBER", s.rearCamber + "°"],
+      ["FRONT TOE", s.frontToe + "°"], ["REAR TOE", s.rearToe + "°"],
+      ["FRONT SUSP", s.frontSuspension], ["REAR SUSP", s.rearSuspension],
+      ["FRONT ARB", s.frontAntiRollBar], ["REAR ARB", s.rearAntiRollBar],
+      ["FRONT HEIGHT", s.frontRideHeight], ["REAR HEIGHT", s.rearRideHeight],
+      ["BRAKE PRESSURE", s.brakePressure + "%"], ["BRAKE BIAS", s.brakeBias + "%"],
+      ["ENGINE BRAKING", s.engineBraking + "%"], ["BALLAST", s.ballast],
+      ["TYRE PSI F", `${s.tyrePressure[2]} / ${s.tyrePressure[3]}`], ["TYRE PSI R", `${s.tyrePressure[0]} / ${s.tyrePressure[1]}`],
+      ["FUEL LOAD", s.fuelLoad + " laps"],
+    ];
+  }
+  function renderSetup(s) {
+    lastSetup = s;
+    $("setup-hash").textContent = s.hash;
+    $("setup").innerHTML = setupRows(s).map(([k, v]) => `<div><div class="k">${k}</div><div>${v}</div></div>`).join("");
+  }
+
+  // ---- track map ----
+  // Outline = closed centreline from live-timing data, starting near the start/finish line, in
+  // driving order. Cars are placed at (lapDistance / trackLength) of the outline's arc length.
+  const canvas = $("map"), ctx = canvas.getContext("2d");
+  let track = null; // { pts: [[x,y]...] in canvas space, cum: [arc length to each pt], total, corners }
+  let trackRaw = null; // the outline as served, for cornerSegments
+  let player = 0;
+  // The canvas backing store follows its CSS box, so the geometry is never stretched: buildTrack
+  // fits the outline with ONE scale (min of width/height ratios) and centres it.
+  new ResizeObserver(() => {
+    const r = canvas.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; if (trackRaw) track = buildTrack(trackRaw); }
+  }).observe(canvas);
+
+  async function loadTrack(trackId) {
+    track = null; $("map-src").textContent = "loading…";
+    try {
+      const res = await fetch(`/tracks/${trackId}.json`);
+      if (!res.ok) { $("map-src").textContent = `no outline for trackId ${trackId} (run: node scripts/fetch-track.ts ${trackId})`; return; }
+      trackRaw = await res.json();
+      track = buildTrack(trackRaw);
+      $("map-src").textContent = track.name;
+      buildCoach();
+    } catch (e) { $("map-src").textContent = "outline failed: " + e.message; }
+  }
+
+  function buildTrack(raw) {
+    // rotate so the layout matches the broadcast orientation, flip y for canvas, fit with padding
+    const rad = (raw.rotation || 0) * Math.PI / 180, cos = Math.cos(rad), sin = Math.sin(rad);
+    const rot = (x, y) => [x * cos - y * sin, -(x * sin + y * cos)];
+    const pts = raw.x.map((x, i) => rot(x, raw.y[i]));
+    const corners = raw.corners.map((c) => ({ n: c.n, p: rot(c.x, c.y) }));
+    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+    const pad = Math.round(Math.min(canvas.width, canvas.height) * 0.08) + 24, W = canvas.width, H = canvas.height;
+    const s = Math.min((W - 2 * pad) / (maxX - minX), (H - 2 * pad) / (maxY - minY));
+    const ox = (W - (maxX - minX) * s) / 2, oy = (H - (maxY - minY) * s) / 2;
+    const P = ([x, y]) => [ox + (x - minX) * s, oy + (y - minY) * s];
+    const cpts = pts.map(P);
+    const cum = [0];
+    for (let i = 1; i < cpts.length; i++) cum.push(cum[i - 1] + Math.hypot(cpts[i][0] - cpts[i - 1][0], cpts[i][1] - cpts[i - 1][1]));
+    const total = cum[cum.length - 1] + Math.hypot(cpts[0][0] - cpts[cpts.length - 1][0], cpts[0][1] - cpts[cpts.length - 1][1]);
+    return { name: raw.name, pts: cpts, cum, total, corners: corners.map((c) => ({ n: c.n, p: P(c.p) })) };
+  }
+
+  // point on the outline at fraction f (0..1) of its arc length
+  function pointAt(f) {
+    const d = ((f % 1) + 1) % 1 * track.total;
+    let lo = 0, hi = track.cum.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (track.cum[mid] <= d) lo = mid; else hi = mid - 1; }
+    const a = track.pts[lo], b = track.pts[(lo + 1) % track.pts.length];
+    const segLen = (lo + 1 < track.cum.length ? track.cum[lo + 1] : track.total) - track.cum[lo];
+    const t = segLen > 0 ? (d - track.cum[lo]) / segLen : 0;
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  }
+
+  function drawMap() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = "11px monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    if (!track) {
+      ctx.fillStyle = "#555";
+      ctx.fillText(session ? "no outline loaded" : "waiting for Session packet…", canvas.width / 2, canvas.height / 2);
+      return;
+    }
+    ctx.strokeStyle = "#444"; ctx.lineWidth = 8; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.beginPath(); track.pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath(); ctx.stroke();
+    const L = session && session.trackLength;
+    if (L && refLap) {
+      // this lap's delta painted on the road behind the car: red where the gap to the reference
+      // grew between two samples, green where it shrank (same rule as the compare page)
+      ctx.lineWidth = 6;
+      const s = live.samples, NEUTRAL_MS = 3; // below this change between samples the gap is barely moving: grey
+      for (let i = 1; i < s.length; i++) {
+        if (s[i].dt === null || s[i - 1].dt === null) continue;
+        const a = pointAt(s[i - 1].d / L), b = pointAt(s[i].d / L);
+        const dd = s[i].dt - s[i - 1].dt;
+        ctx.strokeStyle = Math.abs(dd) < NEUTRAL_MS ? "#666" : dd > 0 ? "#e74c3c" : "#2ecc40";
+        ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      }
+      // my brake (red) and full-throttle (green) points for corners done this lap
+      for (const e of live.log) {
+        if (e.brakeD !== null) { const [x, y] = pointAt(e.brakeD / L); ctx.fillStyle = "#e74c3c"; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill(); }
+        if (e.throttleD !== null) { const [x, y] = pointAt(e.throttleD / L); ctx.fillStyle = "#2ecc40"; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill(); }
+      }
+      // caution markers: OS (oversteer, purple) / US (understeer, orange)
+      ctx.font = "bold 13px monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      for (const sl of live.slides) {
+        const [x, y] = pointAt(sl.d / L);
+        ctx.fillStyle = sl.dir > 0 ? "#9b59b6" : "#e67e22";
+        ctx.beginPath(); ctx.arc(x, y, 11, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#111"; ctx.fillText(sl.dir > 0 ? "OS" : "US", x, y + 1);
+      }
+    }
+    // start/finish
+    const sf = track.pts[0]; ctx.fillStyle = "#eee"; ctx.fillRect(sf[0] - 2, sf[1] - 8, 4, 16);
+    // corner labels: big, grey until you leave the corner, then the delta vs the reference
+    // appears under the number in red (slower) or green (quicker) and stays for the lap.
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (const c of track.corners) {
+      const r = live.log.find((e) => e.n === c.n);
+      const col = !r ? "#555" : resultColor(r.dTime);
+      const label = "T" + c.n, dy = -18;
+      ctx.font = "bold 26px monospace";
+      ctx.lineWidth = 5; ctx.strokeStyle = "#0a0a0a"; ctx.strokeText(label, c.p[0], c.p[1] + dy);
+      ctx.fillStyle = col; ctx.fillText(label, c.p[0], c.p[1] + dy);
+      if (r) {
+        const d = (r.dTime > 0 ? "+" : "") + (r.dTime / 1000).toFixed(2);
+        ctx.font = "bold 22px monospace";
+        ctx.strokeText(d, c.p[0], c.p[1] + dy + 26);
+        ctx.fillText(d, c.p[0], c.p[1] + dy + 26);
+      }
+    }
+    ctx.font = "11px monospace";
+    // reference brake points: hollow white dots on the road. Brake where the dot is.
+    if (session && session.trackLength) {
+      ctx.strokeStyle = "#eee"; ctx.lineWidth = 2;
+      for (const rc of refCorners) if (rc.m && rc.m.brakeD !== null) {
+        const [x, y] = pointAt(rc.m.brakeD / session.trackLength);
+        ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+
+    if (!lapInfo || !session || !session.trackLength) return;
+    lapInfo.cars.forEach((c, i) => {
+      if (i === player || !c.active) return;
+      const [x, y] = pointAt(c.lapDistance / session.trackLength);
+      ctx.fillStyle = c.inPits ? "#555" : "#c0392b";
+      ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#ddd"; ctx.fillText(String(c.position), x, y - 12);
+    });
+    const me = lapInfo.cars[player];
+    if (me) {
+      const [x, y] = pointAt(me.lapDistance / session.trackLength);
+      ctx.fillStyle = "#2ecc40"; ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  canvas.onclick = (e) => {
+    if (!track) return;
+    const r = canvas.getBoundingClientRect(), x = (e.clientX - r.left) * canvas.width / r.width, y = (e.clientY - r.top) * canvas.height / r.height;
+    const k = track.corners.find((c) => Math.hypot(c.p[0] - x, c.p[1] - 18 - y) < 28 || Math.hypot(c.p[0] - x, c.p[1] - y) < 28);
+    if (k) { reviewPinned = reviewPinned === k.n ? null : k.n; renderReview(k.n); } // click again to unpin (review then follows the last corner)
+  };
+
+  // ---- live traces: reference grey for the whole lap, this lap in colour as it grows ----
+  const tcanvas = $("traces"), tctx = tcanvas.getContext("2d");
+  function drawTraces() {
+    const W = tcanvas.width, H = tcanvas.height;
+    tctx.clearRect(0, 0, W, H);
+    tctx.font = "10px monospace"; tctx.textBaseline = "alphabetic";
+    if (!refLap) { tctx.fillStyle = "#555"; tctx.textAlign = "center"; tctx.fillText("waiting for a reference lap…", W / 2, H / 2); return; }
+    const L = refLap.track.length, g = refLap.grid;
+    const panes = [
+      { ch: "speed", color: "#f39c12", scale: 0.621371, min: 0, max: Math.max(...g.speed) * 0.621371 * 1.05 },
+      { ch: "throttle", color: "#2ecc40", scale: 1, min: 0, max: 1.05 },
+      { ch: "brake", color: "#e74c3c", scale: 1, min: 0, max: 1.05 },
+      { ch: "steer", color: "#9b59b6", scale: 1, min: -1.05, max: 1.05 },
+    ];
+    // 2 x 2 grid of panes
+    const gap = 14, cols = 2, rowsN = 2, cw = (W - 8) / cols, h = (H - gap * rowsN) / rowsN;
+    const me = lapInfo && lapInfo.player ? lapInfo.player.lapDistance : null;
+    panes.forEach((p, i) => {
+      const x0 = 8 + (i % cols) * cw, w = cw - 12, y0 = gap + Math.floor(i / cols) * (h + gap);
+      const sx = (d) => x0 + (d / L) * w, sy = (v) => y0 + h - ((v * p.scale - p.min) / (p.max - p.min)) * h;
+      tctx.fillStyle = "#151515"; tctx.fillRect(x0, y0, w, h);
+      if (p.ch === "steer") { tctx.fillStyle = "#333"; tctx.fillRect(x0, y0 + h / 2, w, 1); }
+      // corner ticks
+      tctx.fillStyle = "#444";
+      for (const s of refSegs) tctx.fillRect(sx(s.apexD), y0, 1, h);
+      if (i >= cols) { tctx.fillStyle = "#666"; tctx.textAlign = "center"; for (const s of refSegs) tctx.fillText("T" + s.n, sx(s.apexD), y0 + h + 11); }
+      // reference, grey
+      tctx.strokeStyle = "#666"; tctx.lineWidth = 1.2; tctx.beginPath();
+      for (let k = 0; k < g.d.length; k++) k ? tctx.lineTo(sx(g.d[k]), sy(g[p.ch][k])) : tctx.moveTo(sx(g.d[k]), sy(g[p.ch][k]));
+      tctx.stroke();
+      // this lap, colour
+      const s = live.samples;
+      if (s.length > 1) {
+        tctx.strokeStyle = p.color; tctx.lineWidth = 1.8; tctx.beginPath();
+        for (let k = 0; k < s.length; k++) k ? tctx.lineTo(sx(s[k].d), sy(s[k][p.ch])) : tctx.moveTo(sx(s[k].d), sy(s[k][p.ch]));
+        tctx.stroke();
+      }
+      tctx.fillStyle = p.color; tctx.textAlign = "left"; tctx.fillText(p.ch.toUpperCase() === "SPEED" ? "MPH" : p.ch.toUpperCase(), x0 + 3, y0 + 10);
+      // where you are now
+      if (me !== null && me >= 0) { tctx.fillStyle = "#eee"; tctx.fillRect(sx(me) - 0.5, y0, 1, h); }
+    });
+  }
+
+
+  // ---- coach ----
+  // Reference = best recorded lap on this track. Its distance grid gives, at any lap distance,
+  // the time the reference had reached (live delta) and, per corner, where it braked and how
+  // fast it went through (targets). Your own lap is sampled from the Lap Data stream so each
+  // corner can be scored the moment you leave its window.
+  let refLap = null, refSegs = [], refCorners = [], sessionRef = null; // sessionRef: fastest lap of this session, when it is not refLap
+  const refCache = {};
+  async function fetchLap(e) { return (refCache[e.file] ??= { ...(await (await fetch(`/api/lap?f=${encodeURIComponent(e.file)}`)).json()), file: e.file }); }
+  const pickBest = (ls) => ls.reduce((a, b) => (b.lapTimeMs < a.lapTimeMs ? b : a));
+  let live = fresh(-1);
+  // armed: the lap was seen starting from the line. Until then (page opened mid-lap, lap restarted,
+  // flashback) the deltas stay blank instead of comparing a partial lap against a full one.
+  function fresh(lapNum) { return { lapNum, armed: false, samples: [], log: [], cur: null, minSpeed: Infinity, minD: null, brakeD: null, throttleD: null, slides: [], attempts: [] }; }
+  // corner result colour: purple quicker than the reference, green close to it, yellow slower
+  const resultColor = (dTime) => (dTime <= -100 ? "#b57bee" : dTime < 0 ? "#2ecc40" : dTime <= 100 ? "#f1c40f" : "#e74c3c");
+  function blankDeltas() {
+    for (const id of ["live-delta", "live-delta-s"]) { const el = $(id); el.textContent = "--"; el.className = "big flat"; }
+  }
+
+  // Coaching state, kept across laps: every attempt at every corner, and the one lesson.
+  //   history[n]  = [{ lapNum, ev, finding, prog, tr }]   tr = the samples inside the corner window
+  //   lesson      = { n, finding, setLap }                  picked from the last full lap
+  let refEvents = [], history = {}, lesson = null, reviewPinned = null, seqDrawnFor = null;
+
+  async function loadReference(trackId) {
+    try {
+      // The reference is defined once, server side (/api/reference), and shared with the compare page.
+      const r = await fetch(`/api/reference?track=${trackId}&validOnly=${validOnly ? 1 : 0}`);
+      if (!r.ok) { refLap = null; refCorners = []; refEvents = []; $("coach-ref").textContent = "no recorded lap on this track yet"; return; }
+      const best = await r.json();
+      const list = await (await fetch("/api/laps")).json();
+      const mine = usableLaps(list.filter((l) => l.track.id === trackId));
+      const inSession = mine.filter((e) => laps.some((l) => l.file && l.file.endsWith(e.file)));
+      const sBest = inSession.length ? pickBest(inSession) : null;
+      if (refLap && refLap.file !== best.file) { live = fresh(live.lapNum); blankDeltas(); history = {}; lesson = null; renderLesson(); }
+      if (!refLap || refLap.file !== best.file) {
+        refLap = await fetchLap(best);
+        $("coach-ref").textContent = `best ${fmtLap(best.lapTimeMs)} · L${best.lapNum}`;
+        buildCoach();
+      }
+      if (sBest && sBest.file !== best.file) {
+        if (!sessionRef || sessionRef.file !== sBest.file) sessionRef = await fetchLap(sBest);
+        $("coach-session").textContent = `${fmtLap(sBest.lapTimeMs)} · L${sBest.lapNum}`;
+        $("session-row").style.display = "";
+      } else { sessionRef = null; $("session-row").style.display = "none"; }
+    } catch (e) { $("coach-ref").textContent = "reference failed: " + e.message; }
+  }
+  function buildCoach() {
+    if (!refLap || !trackRaw) { refSegs = []; refCorners = []; refEvents = []; return; }
+    refSegs = cornerSegments(trackRaw, refLap.track.length);
+    refCorners = refSegs.map((seg) => ({ seg, m: cornerMetrics(refLap.grid, seg) }));
+    refEvents = refSegs.map((seg) => brakeEvents(refLap.grid, seg));
+    seqDrawnFor = null;
+  }
+
+  // time at distance d on this lap, from the samples (linear between the two nearest)
+  function liveT(d) {
+    const s = live.samples;
+    if (!s.length || d < s[0].d || d > s[s.length - 1].d) return null;
+    let lo = 0, hi = s.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (s[mid].d <= d) lo = mid; else hi = mid - 1; }
+    if (lo === s.length - 1) return s[lo].t;
+    const a = s[lo], b = s[lo + 1], f = b.d > a.d ? (d - a.d) / (b.d - a.d) : 0;
+    return a.t + (b.t - a.t) * f;
+  }
+  // the samples inside a corner window as parallel arrays (what brakeEvents and the chart read)
+  function sliceTrace(seg) {
+    const tr = { d: [], t: [], speed: [], throttle: [], brake: [], steer: [] };
+    for (const x of live.samples) if (x.d >= seg.d0 && x.d <= seg.d1) for (const k in tr) tr[k].push(x[k]);
+    return tr;
+  }
+
+  function coachOnLap(p) {
+    if (!refLap || !refCorners.length) return;
+    const d = p.lapDistance;
+    const last = live.samples[live.samples.length - 1];
+    // new lap, restart, or flashback: distance or lap clock went backwards
+    if (p.lapNum !== live.lapNum || (last && (d < last.d - 50 || p.currentLapMs < last.t - 200))) {
+      if (live.armed && live.attempts.length >= Math.max(3, refSegs.length - 2)) setLesson(live.attempts);
+      live = fresh(p.lapNum); blankDeltas();
+    }
+    if (d < 0) { live.beforeLine = true; renderCoachNext(d); return; }
+    if (!live.armed && (d < 60 || live.beforeLine)) live.armed = true;
+    live.beforeLine = false;
+    if (!live.armed) { renderCoachNext(d); return; }
+    if (!last || d > last.d) {
+      const tr0 = at(refLap.grid, "t", d), tl = lastTelemetry || { speed: 0, throttle: 0, brake: 0, steer: 0 };
+      live.samples.push({ d, t: p.currentLapMs, dt: tr0 === null ? null : p.currentLapMs - tr0, speed: tl.speed, throttle: tl.throttle, brake: tl.brake, steer: tl.steer });
+    }
+    const showDelta = (el, grid) => {
+      const tr = grid ? at(grid, "t", d) : null;
+      if (tr === null) { el.textContent = "--"; el.className = "big flat"; return; }
+      const dt = p.currentLapMs - tr;
+      el.textContent = (dt > 0 ? "+" : "") + (dt / 1000).toFixed(2); el.className = "big " + (dt > 0 ? "loss" : "gain");
+    };
+    showDelta($("live-delta"), refLap.grid);
+    if (sessionRef) showDelta($("live-delta-s"), sessionRef.grid);
+
+    const i = refSegs.findIndex((s) => d >= s.d0 && d <= s.d1);
+    if (i !== live.cur) {
+      if (live.cur !== null && live.cur >= 0) finishCorner(live.cur);
+      live.cur = i; live.minSpeed = Infinity; live.minD = null; live.brakeD = null; live.throttleD = null;
+    }
+    if (i >= 0 && lastTelemetry) {
+      if (lastTelemetry.speed < live.minSpeed) { live.minSpeed = lastTelemetry.speed; live.minD = d; live.throttleD = null; }
+      if (live.brakeD === null && lastTelemetry.brake > 0.2) live.brakeD = d;
+      if (live.throttleD === null && live.minD !== null && d > live.minD && lastTelemetry.throttle > 0.9) live.throttleD = d;
+    }
+    renderCoachNext(d);
+  }
+
+  // A corner just ended: time it, derive its braking sequence, judge it, remember it.
+  function finishCorner(i) {
+    const { seg, m } = refCorners[i];
+    if (!m) return;
+    const t0 = liveT(seg.d0), t1 = liveT(seg.d1);
+    if (t0 === null || t1 === null) return; // lap started inside this window
+    live.log.push({ n: seg.n, dTime: (t1 - t0) - m.time, brakeD: live.brakeD, throttleD: live.throttleD });
+    const tr = sliceTrace(seg), ev = brakeEvents(tr, seg), finding = coachBraking(ev, refEvents[i]);
+    const prevA = (history[seg.n] || []).slice(-1)[0] || null;
+    const prog = finding && prevA ? progress(finding, metricValue(finding.code, prevA.ev)) : null;
+    const attempt = { lapNum: live.lapNum, n: seg.n, ev, finding, prog, tr };
+    (history[seg.n] ??= []).push(attempt);
+    live.attempts.push(attempt);
+    if (lesson && lesson.n === seg.n) renderLesson(attempt);
+    if (reviewPinned === null || reviewPinned === seg.n) renderReview(seg.n);
+  }
+
+  // The one thing to work on, chosen from a full lap's findings.
+  function setLesson(attempts) {
+    const pick = pickLesson(attempts.map((a) => ({ n: a.n, finding: a.finding })));
+    lesson = pick ? { n: pick.n, finding: pick.finding, setLap: live.lapNum, base: metricValue(pick.finding.code, attempts.find((a) => a.n === pick.n).ev) } : { n: null };
+    renderLesson();
+  }
+  function renderLesson(attempt) {
+    const el = $("lesson"), cv = $("lesson-bar");
+    if (!lesson) { el.textContent = "one full lap from the line first"; cv.style.display = "none"; return; }
+    if (lesson.n === null) { el.innerHTML = `<span class="better">nothing stands out</span>`; cv.style.display = "none"; return; }
+    let verdict = "";
+    let now = null;
+    if (attempt && attempt.n === lesson.n) {
+      now = metricValue(lesson.finding.code, attempt.ev);
+      const p2 = progress({ ...lesson.finding, metric: { ...lesson.finding.metric, cur: now } }, lesson.base);
+      if (p2) verdict = ` · <span class="${p2.verdict}">${p2.verdict.toUpperCase()}</span>`;
+    }
+    el.innerHTML = `<span class="t">T${lesson.n} · ${lesson.finding.title}</span>${verdict}<br><span style="font-size:15px;color:#ccc">${lesson.finding.next}</span>`;
+    // bar: the lesson's number, your first attempt (dim), your latest (bright), the reference (grey)
+    cv.style.display = "block";
+    bars(cv, lesson.finding.metric.name, [["was", lesson.base, "#7a6a2a"], ["now", now ?? lesson.base, "#f1c40f"], ["best", lesson.finding.metric.ref, "#888"]]);
+  }
+
+  // Horizontal bars with a label and value each, scaled to the largest.
+  function bars(cv, title, items) {
+    const c = cv.getContext("2d"), W = cv.width, H = cv.height;
+    c.clearRect(0, 0, W, H);
+    const vals = items.map((i) => Math.abs(i[1] ?? 0)), max = Math.max(1, ...vals);
+    const rowH = H / items.length, x0 = 44, w = W - x0 - 44;
+    c.font = "bold 13px monospace"; c.textBaseline = "middle";
+    items.forEach(([label, v, color], i) => {
+      const y = i * rowH + rowH * 0.15, h = rowH * 0.7;
+      c.fillStyle = "#888"; c.textAlign = "right"; c.fillText(label, x0 - 8, y + h / 2);
+      c.fillStyle = "#1c1c1c"; c.fillRect(x0, y, w, h);
+      c.fillStyle = color; c.fillRect(x0, y, v === null ? 0 : (Math.abs(v) / max) * w, h);
+      c.fillStyle = "#eee"; c.textAlign = "left"; c.fillText(v === null ? "--" : Math.round(v), x0 + w + 8, y + h / 2);
+    });
+    if (title) { c.fillStyle = "#666"; c.font = "11px monospace"; c.textAlign = "right"; c.fillText(title, W - 4, 8); }
+  }
+
+  // The coming corner as a strip: red = braking, yellow = braking while turning, white = apex, green = gas.
+  function drawSeq(ev, minSpeedMph) {
+    const cv = $("seq-strip"), c = cv.getContext("2d"), W = cv.width, H = cv.height;
+    c.clearRect(0, 0, W, H);
+    c.font = "bold 13px monospace"; c.textBaseline = "middle";
+    if (!ev || !ev.braking) { c.fillStyle = "#2ecc40"; c.fillRect(0, H * 0.3, W, H * 0.4); c.fillStyle = "#111"; c.textAlign = "center"; c.fillText(`FLAT · ${minSpeedMph} mph`, W / 2, H / 2); return; }
+    const before = ev.apexD - ev.brakeStartD, after = Math.max(30, ev.apexToPickup ?? 0, 30);
+    const total = before + after, sx = (m) => (m / total) * W; // m measured from brake start
+    const y = H * 0.3, h = H * 0.4;
+    c.fillStyle = "#e74c3c"; c.fillRect(0, y, sx(before), h);                                   // braking
+    const turnIn = ev.turnInD === null ? null : ev.turnInD - ev.brakeStartD;
+    const trailStart = turnIn === null ? before - ev.overlapM : Math.max(turnIn, before - ev.overlapM);
+    c.fillStyle = "#f1c40f"; c.fillRect(sx(trailStart), y, sx(before) - sx(trailStart), h);  // trail
+    const gasAt = before + (ev.apexToPickup ?? 0);
+    c.fillStyle = "#2ecc40"; c.fillRect(sx(gasAt), y, W - sx(gasAt), h);                     // gas
+    c.fillStyle = "#eee"; c.fillRect(sx(before) - 2, 0, 4, H);                                // apex
+    c.textAlign = "left"; c.fillStyle = "#eee"; c.fillText(`${Math.round(before)} m`, 4, H / 2);
+    if (turnIn !== null) { c.fillStyle = "#9b59b6"; c.fillRect(sx(turnIn) - 1, 0, 2, H); }
+    c.textAlign = "right"; c.fillStyle = "#111"; c.fillText(`${minSpeedMph} mph`, sx(before) - 8, H / 2);
+    c.textAlign = "left"; c.fillStyle = "#111"; c.fillText(ev.apexToPickup && ev.apexToPickup > 5 ? `+${Math.round(ev.apexToPickup)} m` : "GAS", sx(gasAt) + 6, H / 2);
+  }
+
+  function renderCoachNext(d) {
+    const L = refLap.track.length;
+    const ahead = refCorners.filter((c) => c.seg.apexD > d);
+    const idx = ahead.length ? refCorners.indexOf(ahead[0]) : 0;
+    const nx = refCorners[idx], ev = refEvents[idx];
+    const toApex = ((nx.seg.apexD - d) + L) % L;
+    const m = nx.m;
+    if (!m) { $("coach-next").textContent = `T${nx.seg.n} in ${Math.round(toApex)} m`; return; }
+    if (d < 0) d = ((d % L) + L) % L;
+    const toBrake = m.brakeD === null ? null : ((m.brakeD - d) + L) % L;
+    const brakeLine = m.brakeD === null ? `<span class="zone" style="color:#2ecc40">FLAT</span>`
+      : toBrake < toApex ? `<span class="brake">BRAKE ${Math.round(toBrake)} m</span>`
+      : `<span class="zone loss">BRAKING</span>`;
+    $("coach-next").innerHTML = `<b>T${nx.seg.n}</b> · apex ${Math.round(toApex)} m · ${brakeLine}`;
+    // the reference's sequence for this corner, as metres before/after the apex
+    if (nx.seg.n !== seqDrawnFor) { drawSeq(ev, Math.round(m.minSpeed * 0.621371)); seqDrawnFor = nx.seg.n; }
+    const lastA = (history[nx.seg.n] || []).slice(-1)[0];
+    $("coach-tip").innerHTML = lastA && lastA.finding ? `<span class="title" style="color:${lastA.finding.code === "good" ? "#2ecc40" : "#f1c40f"}">${lastA.finding.title}</span> <span style="color:#888">last time</span>` : "";
+  }
+
+  // ---- corner review: brake + steering together, current vs best, with the sequence marked ----
+  function renderReview(n) {
+    const idx = refSegs.findIndex((s) => s.n === n);
+    if (idx < 0) return;
+    const seg = refSegs[idx], ref = refEvents[idx], attempt = (history[n] || []).slice(-1)[0] || null;
+    $("review-title").textContent = `T${n}` + (attempt ? ` · lap ${attempt.lapNum}` : " · no attempt yet this session") + (reviewPinned === n ? " · pinned" : "");
+    drawReview(seg, ref, attempt);
+    const ev = attempt ? attempt.ev : null;
+    const f = (e, g) => (e ? g(e) : null);
+    const bar2 = (cv, items) => {
+      // paired bars, two per row: you (colour) vs best (grey)
+      const c = cv.getContext("2d"), W = cv.width, H = cv.height;
+      c.clearRect(0, 0, W, H);
+      const cols = 2, colW = W / cols, rowH = H / Math.ceil(items.length / cols);
+      c.textBaseline = "middle";
+      items.forEach(([label, you, best, color, unit], i) => {
+        const x = (i % cols) * colW + 4, y0 = Math.floor(i / cols) * rowH, w = colW - 12, max = Math.max(1, Math.abs(you ?? 0), Math.abs(best ?? 0));
+        c.fillStyle = "#888"; c.font = "11px monospace"; c.textAlign = "left"; c.fillText(label, x, y0 + 9);
+        const row = (y, v, col, name) => {
+          c.fillStyle = "#1c1c1c"; c.fillRect(x + 34, y, w - 76, 18);
+          c.fillStyle = col; c.fillRect(x + 34, y, v === null ? 0 : (Math.abs(v) / max) * (w - 76), 18);
+          c.fillStyle = "#777"; c.font = "11px monospace"; c.textAlign = "right"; c.fillText(name, x + 30, y + 9);
+          c.fillStyle = "#eee"; c.font = "bold 14px monospace"; c.textAlign = "left"; c.fillText(v === null ? "--" : Math.round(v) + unit, x + w - 38, y + 9);
+        };
+        row(y0 + 20, you, color, "you"); row(y0 + 42, best, "#666", "best");
+      });
+    };
+    bar2($("review-bars"), [
+      ["BRAKE · m before apex", f(ev, (e) => e.brakeStartD === null ? null : e.apexD - e.brakeStartD), f(ref, (e) => e.brakeStartD === null ? null : e.apexD - e.brakeStartD), "#e74c3c", ""],
+      ["TRAIL · m braking while turning", f(ev, (e) => e.overlapM), f(ref, (e) => e.overlapM), "#f1c40f", ""],
+      ["APEX · mph", f(ev, (e) => e.minSpeed * 0.621371), f(ref, (e) => e.minSpeed * 0.621371), "#f39c12", ""],
+      ["GAS · m after apex", f(ev, (e) => e.apexToPickup), f(ref, (e) => e.apexToPickup), "#2ecc40", ""],
+    ]);
+    const fd = attempt && attempt.finding;
+    $("review-finding").innerHTML = fd
+      ? `<span class="title" style="color:${fd.code === "good" ? "#2ecc40" : "#f1c40f"}">${fd.title}</span>` +
+        (attempt.prog ? ` · <span style="color:${attempt.prog.verdict === "better" ? "#2ecc40" : attempt.prog.verdict === "worse" ? "#e74c3c" : "#aaa"}">${attempt.prog.verdict.toUpperCase()}</span>` : "") +
+        `<br><span class="next">${fd.next}</span>`
+      : "";
+  }
+
+  const rcanvas = $("review-chart"), rctx = rcanvas.getContext("2d");
+  // Two strips on one distance scale: YOU above, BEST below. Red = braking, yellow = braking while
+  // turning, white line = apex (with the speed), green = on the gas. Compare lengths.
+  function drawReview(seg, ref, attempt) {
+    const W = rcanvas.width, H = rcanvas.height, x0 = 44, w = W - x0 - 4;
+    rctx.clearRect(0, 0, W, H);
+    const sx = (d) => x0 + ((d - seg.d0) / (seg.d1 - seg.d0)) * w;
+    const strip = (y, h, ev, name, dim) => {
+      rctx.font = "bold 12px monospace"; rctx.textBaseline = "middle"; rctx.textAlign = "right";
+      rctx.fillStyle = dim ? "#888" : "#eee"; rctx.fillText(name, x0 - 6, y + h / 2);
+      rctx.fillStyle = "#1c1c1c"; rctx.fillRect(x0, y, w, h);
+      if (!ev) { rctx.fillStyle = "#555"; rctx.textAlign = "center"; rctx.fillText("no data", x0 + w / 2, y + h / 2); return; }
+      const a = dim ? 0.55 : 1;
+      rctx.globalAlpha = a;
+      if (ev.braking) {
+        rctx.fillStyle = "#e74c3c"; rctx.fillRect(sx(ev.brakeStartD), y, sx(ev.apexD) - sx(ev.brakeStartD), h);
+        const trail0 = Math.max(ev.turnInD ?? ev.apexD - ev.overlapM, ev.apexD - ev.overlapM);
+        if (ev.overlapM > 2) { rctx.fillStyle = "#f1c40f"; rctx.fillRect(sx(trail0), y, sx(ev.apexD) - sx(trail0), h); }
+        if (ev.deepM > 2) { rctx.fillStyle = "#e74c3c"; rctx.fillRect(sx(ev.apexD), y, sx(ev.apexD + ev.deepM) - sx(ev.apexD), h); }
+      }
+      const gasD = ev.pickupD ?? null;
+      if (gasD !== null) { rctx.fillStyle = "#2ecc40"; rctx.fillRect(sx(gasD), y, sx(seg.d1) - sx(gasD), h); }
+      rctx.fillStyle = "#eee"; rctx.fillRect(sx(ev.apexD) - 1.5, y - 3, 3, h + 6);
+      rctx.globalAlpha = 1;
+      // numbers on the strip: metres before apex at brake start, apex speed, gas after
+      rctx.font = "bold 12px monospace"; rctx.fillStyle = "#111";
+      if (ev.braking) { rctx.textAlign = "left"; rctx.fillText(`${Math.round(ev.apexD - ev.brakeStartD)} m`, sx(ev.brakeStartD) + 4, y + h / 2); }
+      rctx.textAlign = "right"; rctx.fillStyle = "#eee"; rctx.fillText(`${Math.round(ev.minSpeed * 0.621371)}`, sx(ev.apexD) - 5, y + h / 2);
+      if (gasD !== null && ev.apexToPickup > 5) { rctx.textAlign = "left"; rctx.fillStyle = "#111"; rctx.fillText(`+${Math.round(ev.apexToPickup)} m`, sx(gasD) + 4, y + h / 2); }
+    };
+    strip(10, 28, attempt ? attempt.ev : null, "YOU", false);
+    strip(54, 28, ref, "BEST", true);
+    rctx.font = "10px monospace"; rctx.fillStyle = "#666"; rctx.textAlign = "left"; rctx.textBaseline = "alphabetic";
+    rctx.fillText("red brake · yellow brake+turn · white apex mph · green gas", x0, H - 2);
+  }
+
+  // ---- socket ----
+  function connect() {
+    socket = new WebSocket(`ws://${location.host}`);
+    socket.onopen = () => setStatus("waiting", "WAITING");
+    socket.onmessage = (ev) => {
+      lastPacketAt = Date.now();
+      setStatus("live", "LIVE");
+      const msg = JSON.parse(ev.data);
+      switch (msg.type) {
+        case "telemetry": renderTelemetry(msg.data); break;
+        case "motion": player = msg.data.player; renderMotion(msg.data); break;
+        case "lap": renderLap(msg.data); break;
+        case "session": renderSession(msg.data); break;
+        case "status": renderStatus(msg.data); break;
+        case "setup": renderSetup(msg.data); break;
+        case "laps": laps = msg.data; renderLaps(); if (session) loadReference(session.trackId); break;
+        case "lapCompleted": laps.push(msg.data); renderLaps(); if (session) loadReference(session.trackId); break;
+      }
+    };
+    socket.onclose = () => { setStatus("disconnected", "DISCONNECTED"); setTimeout(connect, 1000); };
+    socket.onerror = () => socket.close();
+  }
+
+  // When the stream stops: show WAITING, dim the panels, and drop the cars from the map so stale
+  // values are never mistaken for live ones.
+  setInterval(() => {
+    if (socket && socket.readyState === WebSocket.OPEN && Date.now() - lastPacketAt > STALE_MS) {
+      setStatus("waiting", "WAITING");
+      document.body.classList.add("stale");
+      lapInfo = null;
+    } else {
+      document.body.classList.remove("stale");
+    }
+  }, 250);
+
+  connect();
+  // render loop last: every variable it reads is declared above by now
+  (function frame() { drawMap(); drawTraces(); requestAnimationFrame(frame); })();
+</script>
+</body>
+</html>

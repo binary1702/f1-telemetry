@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lap Compare</title>
+<style>
+  body { margin: 0; padding: 10px 12px; background: #111; color: #eee; font: 12px/1.35 ui-monospace, Menlo, monospace; }
+  h1 { font-size: 13px; margin: 0; letter-spacing: 0.1em; white-space: nowrap; }
+  a { color: #888; }
+  .label { font-size: 10px; color: #888; letter-spacing: 0.15em; margin-top: 8px; }
+  .top { display: grid; grid-template-columns: auto 1fr 1fr auto auto; gap: 12px; align-items: center; }
+  select { width: 100%; background: #1a1a1a; color: #eee; border: 1px solid #444; padding: 3px; font: inherit; }
+  .ref { color: #aaa; } .lap { color: #2ecc40; }
+  #summary { font-size: 14px; white-space: nowrap; }
+  canvas { background: #0a0a0a; border: 1px solid #333; display: block; width: 100%; }
+  .cols { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(0, 1.15fr); gap: 0 14px; align-items: start; }
+  @media (max-width: 1000px) { .cols { grid-template-columns: 1fr; } }
+  table { border-collapse: collapse; font-size: 11px; margin-top: 2px; width: 100%; }
+  th, td { text-align: right; padding: 1px 5px 1px 0; white-space: nowrap; }
+  th { font-size: 9px; color: #888; letter-spacing: 0.1em; font-weight: normal; }
+  tr.grp th { text-align: center; border-bottom: 1px solid #333; padding: 2px 4px; }
+  tr.grp th + th { border-left: 1px solid #333; }
+  th.l, td.l { text-align: left; }
+  td.sep { border-left: 1px solid #222; }
+  tbody tr { cursor: pointer; } tbody tr:hover { background: #1a1a1a; } tbody tr.sel { background: #202a20; }
+  td.gain { color: #2ecc40; } td.loss { color: #e74c3c; }
+  .quicker { color: #b57bee; } .close { color: #2ecc40; } .slower { color: #f1c40f; }
+  option.invalid, .picks label.invalid { background: #3a1212; }
+  .hint { font-size: 10px; color: #666; margin-top: 3px; }
+  #map { cursor: crosshair; }
+  #cursor-info { font-size: 11px; color: #aaa; min-height: 1.3em; margin-top: 2px; }
+  button { background: #1a1a1a; color: #eee; border: 1px solid #444; padding: 1px 8px; font: inherit; font-size: 10px; cursor: pointer; margin-left: 8px; }
+  .kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 1px 10px; }
+  .kv .k { font-size: 9px; color: #888; letter-spacing: 0.1em; }
+  .kv .diff { color: #f39c12; }
+  button.on { border-color: #2ecc40; color: #2ecc40; }
+  .ab-top { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 4px; }
+  .ab-top select { width: auto; max-width: 100%; }
+  .a { color: #3498db; } .b { color: #f39c12; }
+  #ab-table td.l { color: #eee; }
+  .ab-cols { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(0, 1.15fr); gap: 0 14px; align-items: start; }
+  @media (max-width: 1000px) { .ab-cols { grid-template-columns: 1fr; } }
+  .picks { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 4px; font-size: 11px; }
+  .picks label { cursor: pointer; white-space: nowrap; color: #aaa; }
+  .picks label.on { color: #eee; }
+  .picks input { vertical-align: -1px; margin: 0 3px 0 0; }
+  #cons-strip { cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>LAP COMPARE <a href="/">← coach</a> <a href="/live">live</a> <a href="/setups">setups →</a></h1>
+  <div><span class="label ref">REFERENCE · the lap to beat</span><select id="ref"></select></div>
+  <div><span class="label lap">THIS LAP</span><select id="lap"></select></div>
+  <div id="summary">loading laps…</div>
+  <button id="valid-only" title="hide laps flagged invalid, flashback or incomplete">VALID ONLY</button>
+</div>
+
+<div class="cols">
+<div>
+  <div class="label">TRACK · <span id="map-name"></span> · road painted <span style="color:#e74c3c">losing</span> / <span style="color:#2ecc40">gaining</span> · click a corner number to zoom</div>
+  <canvas id="map" width="640" height="420"></canvas>
+  <div id="cursor-info"></div>
+
+  <div class="label">CORNERS · click a row to zoom the traces to it <button id="sort-loss" class="on">BIGGEST LOSS FIRST</button><button id="sort-track">TRACK ORDER</button></div>
+  <div style="overflow-x:auto"><table id="corners">
+    <thead>
+      <tr class="grp">
+        <th rowspan="2" class="l">T</th>
+        <th colspan="3">TIME s</th>
+        <th colspan="2">MIN mph</th>
+        <th colspan="2">BRAKE PT m</th>
+        <th colspan="2">FULL THR m</th>
+        <th colspan="2">COAST m</th>
+      </tr>
+      <tr>
+        <th class="ref">ref</th><th class="lap">lap</th><th>Δ</th>
+        <th class="ref">ref</th><th class="lap">lap</th>
+        <th class="ref">ref</th><th class="lap">lap</th>
+        <th class="ref">ref</th><th class="lap">lap</th>
+        <th class="ref">ref</th><th class="lap">lap</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table></div>
+
+  <div class="label">DRIVING STYLE · whole lap</div>
+  <div id="style" class="kv"></div>
+
+  <div class="label">BALANCE · per corner · <span class="ref">ref</span>/<span class="lap">lap</span> · <span id="bal-note"></span></div>
+  <div style="overflow-x:auto"><table id="balance">
+    <thead>
+      <tr class="grp"><th rowspan="2" class="l">T</th><th colspan="2">PEAK LAT g</th><th colspan="2">STEER / g</th><th colspan="2">REAR SLIDES</th><th colspan="2">FRONT WASHES</th></tr>
+      <tr><th class="ref">ref</th><th class="lap">lap</th><th class="ref">ref</th><th class="lap">lap</th><th class="ref">ref</th><th class="lap">lap</th><th class="ref">ref</th><th class="lap">lap</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table></div>
+
+  <div class="label">SETUP · <span class="ref">ref</span> → <span class="lap">lap</span> · <span id="setup-note"></span></div>
+  <div id="setup" class="kv"></div>
+</div>
+
+<div>
+  <div class="label">DELTA · time lost (+) or gained (−) vs reference · read the slope, not the height</div>
+  <canvas id="delta" width="900" height="170"></canvas>
+
+  <div class="label">TRACES · <span class="ref">reference grey</span> vs this lap in colour · <span style="color:#f39c12">MPH</span> <span style="color:#2ecc40">THROTTLE</span> <span style="color:#e74c3c">BRAKE</span> <span style="color:#9b59b6">STEER</span> <button id="full">FULL LAP</button></div>
+  <canvas id="traces" width="900" height="520"></canvas>
+</div>
+</div>
+
+<div class="label" style="margin-top:14px">CONSISTENCY · same corner across several laps · spread = what you add, lap to lap · <span id="cons-note"></span></div>
+<div id="cons-picks" class="picks"></div>
+<div class="ab-cols">
+  <div>
+    <div class="label">PER CORNER · sorted by spread (least consistent first)</div>
+    <div style="overflow-x:auto"><table id="cons-table">
+      <thead><tr><th class="l">T</th><th>BEST s</th><th>IN LAP</th><th>MEDIAN</th><th>WORST</th><th>SPREAD</th><th>LAPS</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <div id="cons-sum" style="margin-top:4px"></div>
+  </div>
+  <div>
+    <div class="label">TIME LOST VS YOUR BEST ATTEMPT AT EACH CORNER · one dot per lap · <span class="lap">this lap</span> · <span class="ref">reference</span></div>
+    <canvas id="cons-strip" width="900" height="260"></canvas>
+  </div>
+</div>
+
+<div class="label" style="margin-top:14px">SETUP A/B · every lap on this track grouped by garage setup · per-corner medians · <span id="ab-note"></span></div>
+<div id="ab"></div>
+
+<script type="module">
+  import { cornerSegments, deltaTrace, compareCorners, styleMetrics, outlineArc, setupGroups, compareSetupGroups, consistency, hasBalance, yawSignOf, balanceMetrics, at } from "/analysis.js";
+
+  const $ = (id) => document.getElementById(id);
+  const MPH = 0.621371;
+  const fmt = (ms) => { const m = Math.floor(ms / 60000), s = ((ms % 60000) / 1000).toFixed(3).padStart(6, "0"); return `${m}:${s}`; };
+  const fmtD = (ms) => (ms > 0 ? "+" : "") + (ms / 1000).toFixed(3);
+  // corner result: purple quicker than the reference, green close to it, yellow slower
+  const resultClass = (dTime) => (dTime <= -100 ? "quicker" : dTime < 0 ? "close" : dTime <= 100 ? "slower" : "loss");
+  // delta slope: below NEUTRAL_MS per 5 m step the gap is barely moving, painted grey
+  const NEUTRAL_MS = 3;
+  const slopeColor = (prev, cur) => (Math.abs(cur - prev) < NEUTRAL_MS ? "#666" : cur > prev ? "#e74c3c" : "#2ecc40");
+
+  // State: two laps, the track outline, corner windows, the zoom window [d0, d1] in metres, and
+  // the hover cursor as a lap distance. Every view (map, delta, traces, table) is a function of these.
+  let laps = [], ref = null, lap = null, outline = null, map = null, segs = [], zoom = null, cursorD = null;
+  let sortByLoss = true;            // corner table: biggest time loss first, or track order
+  let validOnly = localStorage.getItem("validOnly") === "1"; // hide invalid/flashback/incomplete laps everywhere
+  const isValid = (l) => l.valid;
+  function renderValidToggle() { $("valid-only").className = validOnly ? "on" : ""; }
+  const lapCache = {};              // file -> full lap record, so A/B does not refetch
+  let groups = [], abA = null, abB = null; // setup groups for the current track, and the two chosen hashes
+  let trackLaps = [], consSel = null;      // all usable laps on this track; the Set of files picked for the consistency view
+
+  // Garage fields shown in the setup blocks. k is a key into the setup snapshot or a getter.
+  const SETUP_FIELDS = [
+    ["FRONT WING", "frontWing"], ["REAR WING", "rearWing"],
+    ["DIFF ON THR", "diffOnThrottle", "%"], ["DIFF OFF THR", "diffOffThrottle", "%"],
+    ["FRONT CAMBER", "frontCamber", "°"], ["REAR CAMBER", "rearCamber", "°"],
+    ["FRONT TOE", "frontToe", "°"], ["REAR TOE", "rearToe", "°"],
+    ["FRONT SUSP", "frontSuspension"], ["REAR SUSP", "rearSuspension"],
+    ["FRONT ARB", "frontAntiRollBar"], ["REAR ARB", "rearAntiRollBar"],
+    ["FRONT HEIGHT", "frontRideHeight"], ["REAR HEIGHT", "rearRideHeight"],
+    ["BRAKE PRESSURE", "brakePressure", "%"], ["BRAKE BIAS", "brakeBias", "%"],
+    ["ENGINE BRAKING", "engineBraking", "%"], ["BALLAST", "ballast"],
+    ["PSI FL", (s) => s.tyrePressure[2]], ["PSI FR", (s) => s.tyrePressure[3]],
+    ["PSI RL", (s) => s.tyrePressure[0]], ["PSI RR", (s) => s.tyrePressure[1]],
+    ["FUEL LOAD", "fuelLoad", " laps"],
+  ];
+  const setupGet = (s, k) => (typeof k === "function" ? k(s) : s[k]);
+
+  // ---- lap list ----
+  async function loadList() {
+    renderValidToggle();
+    const all = await (await fetch("/api/laps")).json();
+    laps = validOnly ? all.filter(isValid) : all;
+    const groups = {};
+    for (const l of laps) (groups[`${l.track.name} · ${l.sessionType} · ${l.recordedAt.slice(0, 10)} · ${l.sessionUID}`] ??= []).push(l);
+    const html = Object.entries(groups).map(([g, ls]) =>
+      `<optgroup label="${g}">` + ls.map((l) =>
+        `<option value="${l.file}" class="${l.valid ? "" : "invalid"}">L${l.lapNum} ${fmt(l.lapTimeMs)} ${l.valid ? "✓" : l.flags.join(",")} · ${l.tags.compound} ${l.tags.tyreAgeLaps} · ${l.tags.setupHash ?? "--"}</option>`
+      ).join("") + "</optgroup>").join("");
+    $("ref").innerHTML = html; $("lap").innerHTML = html;
+    if (!laps.length) { $("summary").textContent = validOnly ? "no valid laps recorded yet (VALID ONLY is on)." : "no recorded laps yet. Drive, then come back."; return; }
+    // Reference default comes from /api/reference, the one definition shared with the live page.
+    const trackId = laps[0].track.id;
+    const r = await fetch(`/api/reference?track=${trackId}&validOnly=${validOnly ? 1 : 0}`);
+    const bestFile = r.ok ? (await r.json()).file : null;
+    const best = laps.find((l) => l.file === bestFile) ?? laps[0];
+    const latest = laps.find((l) => l !== best) ?? best; // most recent lap that is not the reference
+    $("ref").value = best.file; $("lap").value = latest.file;
+    await select();
+  }
+
+  // Full lap record, cached by file. The file name is attached so records can be matched to the list.
+  async function loadLap(file) { return (lapCache[file] ??= { ...(await (await fetch(`/api/lap?f=${encodeURIComponent(file)}`)).json()), file }); }
+
+  async function select() {
+    [ref, lap] = await Promise.all([loadLap($("ref").value), loadLap($("lap").value)]);
+    if (!outline || outline.trackId !== lap.track.id) {
+      const r = await fetch(`/tracks/${lap.track.id}.json`);
+      outline = r.ok ? await r.json() : null;
+      map = outline ? buildMap(outline) : null;
+      $("map-name").textContent = outline ? outline.name : `no outline for trackId ${lap.track.id} (run: node scripts/fetch-track.ts ${lap.track.id})`;
+    }
+    if (ref.track.id !== lap.track.id || (trackLaps[0] && trackLaps[0].track.id !== lap.track.id)) consSel = null;
+    segs = outline ? cornerSegments(outline, lap.track.length) : [];
+    zoom = null; cursorD = null;
+    render();
+    loadGroups();
+  }
+  $("ref").onchange = select; $("lap").onchange = select;
+  $("valid-only").onclick = () => { validOnly = !validOnly; localStorage.setItem("validOnly", validOnly ? "1" : "0"); consSel = null; loadList(); };
+  $("full").onclick = () => { zoom = null; render(); };
+  $("sort-loss").onclick = () => { sortByLoss = true; render(); };
+  $("sort-track").onclick = () => { sortByLoss = false; render(); };
+
+  // ---- render ----
+  function render() {
+    const sameTrack = ref.track.id === lap.track.id;
+    $("summary").innerHTML = sameTrack
+      ? `<span class="ref">${fmt(ref.lapTimeMs)}</span> → <span class="lap">${fmt(lap.lapTimeMs)}</span> &nbsp; Δ ${fmtD(lap.lapTimeMs - ref.lapTimeMs)}`
+      : "laps are from different tracks";
+    if (!sameTrack) return;
+    drawMap();
+    drawDelta();
+    drawCorners();
+    drawTraces();
+    drawStyle();
+    drawBalance();
+    drawSetup();
+    if (consRows) drawConsStrip();
+  }
+  // Hover only moves the cursor; the table and style block do not depend on it.
+  function renderCursor() { drawMap(); drawDelta(); drawTraces(); drawCursorInfo(); if (consRows) drawConsStrip(); }
+  let consRows = null; // consistency rows for the current pick, kept for the strip
+
+  // Shared axis helpers. xRange is [d0, d1] in metres.
+  function xRange() { return zoom ?? [0, lap.track.length]; }
+  function xScale(rect) { const [a, b] = xRange(); return (d) => rect.x + ((d - a) / (b - a)) * rect.w; }
+  function xUnscale(rect) { const [a, b] = xRange(); return (x) => a + ((x - rect.x) / rect.w) * (b - a); }
+  // Mouse event -> canvas pixel coordinates (the canvas is CSS-scaled to the page width).
+  function canvasXY(c, e) { const r = c.getBoundingClientRect(); return [(e.clientX - r.left) * c.width / r.width, (e.clientY - r.top) * c.height / r.height]; }
+  function cursorLine(ctx, rect, sx) {
+    if (cursorD === null || cursorD < xRange()[0] || cursorD > xRange()[1]) return;
+    ctx.fillStyle = "#eee"; ctx.fillRect(sx(cursorD) - 0.5, rect.y, 1, rect.h);
+  }
+  // Hovering a trace canvas sets the cursor by distance; leaving clears it.
+  function traceHover(c, rect) {
+    c.onmousemove = (e) => { const [x] = canvasXY(c, e); cursorD = x < rect.x || x > rect.x + rect.w ? null : xUnscale(rect)(x); renderCursor(); };
+    c.onmouseleave = () => { cursorD = null; renderCursor(); };
+  }
+
+  // ---- track map ----
+  // The outline is rotated to broadcast orientation, flipped for canvas y, and fitted with padding.
+  // The transform is a similarity, so arc-length fractions survive it: outlineArc over the canvas
+  // points gives the same lap fractions as over the raw ones, and we only need the canvas version.
+  const PAD = 28;
+  function buildMap(raw) {
+    const c = $("map");
+    const rad = (raw.rotation || 0) * Math.PI / 180, cos = Math.cos(rad), sin = Math.sin(rad);
+    const rot = (x, y) => [x * cos - y * sin, -(x * sin + y * cos)];
+    const pts = raw.x.map((x, i) => rot(x, raw.y[i]));
+    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+    const s = Math.min((c.width - 2 * PAD) / (maxX - minX), (c.height - 2 * PAD) / (maxY - minY));
+    const ox = (c.width - (maxX - minX) * s) / 2, oy = (c.height - (maxY - minY) * s) / 2;
+    const P = ([x, y]) => [ox + (x - minX) * s, oy + (y - minY) * s];
+    const cpts = pts.map(P);
+    const canvasOutline = { x: cpts.map((p) => p[0]), y: cpts.map((p) => p[1]) };
+    return {
+      pts: cpts,
+      arc: outlineArc(canvasOutline),
+      corners: raw.corners.map((k) => ({ n: k.n, p: P(rot(k.x, k.y)) })),
+    };
+  }
+  const mapPoint = (d) => map.arc.pointAt(d / lap.track.length);
+  const segAt = (d) => segs.find((s) => d >= s.d0 && d <= s.d1) ?? null;
+
+  function drawMap() {
+    const c = $("map"), ctx = c.getContext("2d");
+    ctx.clearRect(0, 0, c.width, c.height);
+    if (!map) { ctx.fillStyle = "#555"; ctx.font = "11px monospace"; ctx.textAlign = "center"; ctx.fillText("no outline", c.width / 2, c.height / 2); return; }
+    ctx.lineJoin = "round"; ctx.lineCap = "round";
+    const stroke = (d0, d1, color, width) => {
+      // walk the outline between two lap distances in 5 m steps so curves stay smooth
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
+      for (let d = d0, first = true; ; d += 5, first = false) {
+        if (d > d1) d = d1;
+        const [x, y] = mapPoint(d); first ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        if (d >= d1) break;
+      }
+      ctx.stroke();
+    };
+
+    // 1. road: the full closed outline
+    ctx.strokeStyle = "#2a2a2a"; ctx.lineWidth = 12; ctx.beginPath();
+    map.pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath(); ctx.stroke();
+
+    // 2. zoomed corner window: a glow under the delta paint so the active corner is unmistakable
+    if (zoom) stroke(zoom[0], zoom[1], "rgba(46,204,64,0.35)", 26);
+
+    // 3. delta painted onto the road: the slope of t_lap - t_ref, same colouring as the delta trace
+    const dt = deltaTrace(ref.grid, lap.grid);
+    for (let i = 1; i < dt.d.length; i++) {
+      const col = slopeColor(dt.delta[i - 1], dt.delta[i]);
+      const dim = zoom && (dt.d[i] < zoom[0] || dt.d[i - 1] > zoom[1]);
+      stroke(dt.d[i - 1], dt.d[i], dim ? { "#e74c3c": "#5a2a28", "#2ecc40": "#1f4a26", "#666": "#333" }[col] : col, 6);
+    }
+
+    // 4. start/finish and corner numbers (numbers are click targets)
+    const sf = map.pts[0]; ctx.fillStyle = "#eee"; ctx.fillRect(sf[0] - 2, sf[1] - 9, 4, 18);
+    ctx.font = "bold 12px monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const active = zoom ? segs.find((s) => s.d0 === zoom[0]) : null, hover = cursorD === null ? null : segAt(cursorD);
+    for (const k of map.corners) {
+      const on = active && active.n === k.n, near = hover && hover.n === k.n;
+      ctx.fillStyle = on ? "#2ecc40" : near ? "#eee" : "#777";
+      ctx.fillText("T" + k.n, k.p[0], k.p[1] - 14);
+    }
+
+    // 5. cursor: where the hovered distance is on the road
+    if (cursorD !== null) {
+      const [x, y] = mapPoint(cursorD);
+      ctx.fillStyle = "#0a0a0a"; ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#eee"; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  function drawCursorInfo() {
+    const el = $("cursor-info");
+    if (cursorD === null) { el.textContent = ""; return; }
+    const s = segAt(cursorD), tr = at(ref.grid, "t", cursorD), tl = at(lap.grid, "t", cursorD);
+    const vr = at(ref.grid, "speed", cursorD), vl = at(lap.grid, "speed", cursorD);
+    el.innerHTML = `${s ? "T" + s.n : "--"} · ${Math.round(cursorD)} m` +
+      (tr !== null && tl !== null ? ` · Δ <span class="${resultClass(tl - tr)}">${fmtD(tl - tr)}s</span>` : "") +
+      (vr !== null && vl !== null ? ` · <span class="ref">${Math.round(vr * MPH)}</span> → <span class="lap">${Math.round(vl * MPH)}</span> mph` : "");
+  }
+
+  // Map interaction: hover snaps to the nearest outline point (distance, not pixel x); click a
+  // corner number to zoom that corner.
+  {
+    const c = $("map");
+    c.onmousemove = (e) => {
+      if (!map) return;
+      const [x, y] = canvasXY(c, e);
+      const i = map.arc.nearest(x, y);
+      const near = Math.hypot(map.pts[i][0] - x, map.pts[i][1] - y) < 30;
+      cursorD = near ? map.arc.fracAt(i) * lap.track.length : null;
+      renderCursor();
+    };
+    c.onmouseleave = () => { cursorD = null; renderCursor(); };
+    c.onclick = (e) => {
+      if (!map) return;
+      const [x, y] = canvasXY(c, e);
+      const k = map.corners.find((k) => Math.hypot(k.p[0] - x, k.p[1] - 14 - y) < 22 || Math.hypot(k.p[0] - x, k.p[1] - y) < 22);
+      const s = k && segs.find((s) => s.n === k.n);
+      if (!s) return;
+      zoom = zoom && zoom[0] === s.d0 ? null : [s.d0, s.d1];
+      render();
+    };
+  }
+  function line(ctx, grid, ch, rect, sx, yMin, yMax, color, scale = 1) {
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.beginPath();
+    let pen = false;
+    for (let i = 0; i < grid.d.length; i++) {
+      if (grid.d[i] < xRange()[0] || grid.d[i] > xRange()[1]) { pen = false; continue; }
+      const x = sx(grid.d[i]), y = rect.y + rect.h - ((grid[ch][i] * scale - yMin) / (yMax - yMin)) * rect.h;
+      pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y); pen = true;
+    }
+    ctx.stroke();
+  }
+  function cornerTicks(ctx, rect, sx) {
+    ctx.fillStyle = "#666"; ctx.font = "10px monospace"; ctx.textAlign = "center";
+    for (const s of segs) if (s.apexD >= xRange()[0] && s.apexD <= xRange()[1]) {
+      ctx.fillRect(sx(s.apexD), rect.y, 1, rect.h);
+      ctx.fillText("T" + s.n, sx(s.apexD), rect.y + rect.h + 12);
+    }
+  }
+
+  function drawDelta() {
+    const c = $("delta"), ctx = c.getContext("2d");
+    ctx.clearRect(0, 0, c.width, c.height);
+    const rect = { x: 50, y: 15, w: c.width - 65, h: c.height - 45 }, sx = xScale(rect);
+    const dt = deltaTrace(ref.grid, lap.grid);
+    const lim = Math.max(200, ...dt.delta.map(Math.abs)) * 1.1;
+    const sy = (v) => rect.y + rect.h / 2 - (v / lim) * (rect.h / 2);
+    ctx.fillStyle = "#333"; ctx.fillRect(rect.x, sy(0), rect.w, 1);
+    ctx.fillStyle = "#888"; ctx.font = "10px monospace"; ctx.textAlign = "right";
+    ctx.fillText("+" + (lim / 1000).toFixed(2) + "s", rect.x - 6, rect.y + 8); ctx.fillText("0", rect.x - 6, sy(0) + 3); ctx.fillText("−" + (lim / 1000).toFixed(2) + "s", rect.x - 6, rect.y + rect.h);
+    cornerTicks(ctx, rect, sx);
+    if (zoom) { ctx.fillStyle = "rgba(46,204,64,0.08)"; ctx.fillRect(sx(zoom[0]), rect.y, sx(zoom[1]) - sx(zoom[0]), rect.h); }
+    // colour by slope: climbing (losing) red, falling (gaining) green
+    for (let i = 1; i < dt.d.length; i++) {
+      ctx.strokeStyle = slopeColor(dt.delta[i - 1], dt.delta[i]); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(sx(dt.d[i - 1]), sy(dt.delta[i - 1])); ctx.lineTo(sx(dt.d[i]), sy(dt.delta[i])); ctx.stroke();
+    }
+    cursorLine(ctx, rect, sx);
+    traceHover(c, rect);
+  }
+
+  function drawCorners() {
+    const rows = compareCorners(ref.grid, lap.grid, segs);
+    // Rank: biggest loss first puts the corner that costs the most at the top. Uncovered rows last.
+    if (sortByLoss) rows.sort((a, b) => (b.dTime ?? -Infinity) - (a.dTime ?? -Infinity));
+    $("sort-loss").className = sortByLoss ? "on" : ""; $("sort-track").className = sortByLoss ? "" : "on";
+    const tb = $("corners").querySelector("tbody");
+    const n = (v, f = (x) => Math.round(x)) => (v === null || v === undefined ? "--" : f(v));
+    const before = (m, apex) => (m === null ? "--" : Math.round(apex - m));
+    const after = (m, apex) => (m === null ? "--" : Math.round(m - apex));
+    tb.innerHTML = rows.map((r, i) => {
+      if (!r.ref || !r.lap) return `<tr><td class="l">T${r.seg.n}</td><td colspan="11" style="text-align:left;color:#666">not covered by both laps</td></tr>`;
+      const cls = resultClass(r.dTime);
+      const pair = (a, b) => `<td class="sep ref">${a}</td><td class="lap">${b}</td>`;
+      return `<tr data-i="${i}" class="${zoom && zoom[0] === r.seg.d0 ? "sel" : ""}">
+        <td class="l">T${r.seg.n}</td>
+        <td class="sep ref">${(r.ref.time / 1000).toFixed(3)}</td><td class="lap">${(r.lap.time / 1000).toFixed(3)}</td><td class="${cls}">${fmtD(r.dTime)}</td>
+        ${pair(n(r.ref.minSpeed * MPH), n(r.lap.minSpeed * MPH))}
+        ${pair(before(r.ref.brakeD, r.ref.apexD), before(r.lap.brakeD, r.lap.apexD))}
+        ${pair(after(r.ref.throttleD, r.ref.apexD), after(r.lap.throttleD, r.lap.apexD))}
+        ${pair(n(r.ref.coastM), n(r.lap.coastM))}</tr>`;
+    }).join("");
+    tb.querySelectorAll("tr[data-i]").forEach((tr) => {
+      const s = rows[+tr.dataset.i].seg;
+      tr.onclick = () => { zoom = [s.d0, s.d1]; render(); };
+      tr.onmouseenter = () => { cursorD = s.apexD; renderCursor(); };
+      tr.onmouseleave = () => { cursorD = null; renderCursor(); };
+    });
+  }
+
+  function drawTraces() {
+    const c = $("traces"), ctx = c.getContext("2d");
+    ctx.clearRect(0, 0, c.width, c.height);
+    const panes = [
+      { ch: "speed", label: "MPH", color: "#f39c12", scale: MPH, min: 0, max: Math.max(...ref.grid.speed, ...lap.grid.speed) * MPH * 1.05 },
+      { ch: "throttle", label: "THROTTLE", color: "#2ecc40", scale: 1, min: 0, max: 1.05 },
+      { ch: "brake", label: "BRAKE", color: "#e74c3c", scale: 1, min: 0, max: 1.05 },
+      { ch: "steer", label: "STEER  L ↓ R ↑", color: "#9b59b6", scale: 1, min: -1.05, max: 1.05 },
+    ];
+    const gap = 28, h = (c.height - gap * panes.length) / panes.length;
+    panes.forEach((p, i) => {
+      const rect = { x: 50, y: 10 + i * (h + gap), w: c.width - 65, h }, sx = xScale(rect);
+      ctx.fillStyle = "#151515"; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      if (p.ch === "steer") { ctx.fillStyle = "#333"; ctx.fillRect(rect.x, rect.y + rect.h / 2, rect.w, 1); }
+      ctx.fillStyle = p.color; ctx.font = "bold 10px monospace"; ctx.textAlign = "left"; ctx.fillText(p.label, rect.x, rect.y - 2);
+      cornerTicks(ctx, rect, sx);
+      line(ctx, ref.grid, p.ch, rect, sx, p.min, p.max, "#777", p.scale);
+      line(ctx, lap.grid, p.ch, rect, sx, p.min, p.max, p.color, p.scale);
+      cursorLine(ctx, rect, sx);
+    });
+    ctx.fillStyle = "#888"; ctx.textAlign = "right"; ctx.fillText(`${Math.round(xRange()[0])} – ${Math.round(xRange()[1])} m`, c.width - 15, c.height - 4);
+    traceHover(c, { x: 50, y: 0, w: c.width - 65, h: c.height });
+  }
+
+  function drawStyle() {
+    const r = styleMetrics(ref.grid), l = styleMetrics(lap.grid);
+    const rows = [
+      ["COASTING", "m with no pedal", r.coastM, l.coastM, 0],
+      ["TRAIL BRAKING", "m braking while turning", r.trailM, l.trailM, 0],
+      ["BRAKE PEAK", "mean peak pressure", r.brakePeak * 100, l.brakePeak * 100, 0, "%"],
+      ["THROTTLE LIFTS", "sudden lifts above 50%", r.throttleSpikes, l.throttleSpikes, 0],
+      ["STEER REVERSALS", "per km", r.steerReversalsPerKm, l.steerReversalsPerKm, 1],
+    ];
+    $("style").innerHTML = rows.map(([k, hint, a, b, dp, unit = ""]) =>
+      `<div><div class="k">${k} <span style="letter-spacing:0;color:#666">${hint}</span></div><span class="ref">${a.toFixed(dp)}${unit}</span> → <span class="lap">${b.toFixed(dp)}${unit}</span></div>`).join("");
+  }
+
+  function drawBalance() {
+    const tb = $("balance").querySelector("tbody"), note = $("bal-note");
+    if (!hasBalance(ref.grid) || !hasBalance(lap.grid)) {
+      note.textContent = "needs laps recorded after the balance update (g and yaw channels)";
+      tb.innerHTML = ""; return;
+    }
+    note.textContent = "";
+    const ys = yawSignOf(ref.grid), yl = yawSignOf(lap.grid);
+    const n = (v, dp = 0) => (v === null || v === undefined ? "--" : v.toFixed(dp));
+    const pair = (a, b, dp = 0) => `<td class="sep ref">${n(a, dp)}</td><td class="lap">${n(b, dp)}</td>`;
+    tb.innerHTML = segs.map((seg) => {
+      const r = balanceMetrics(ref.grid, seg, ys), l = balanceMetrics(lap.grid, seg, yl);
+      if (!r || !l) return "";
+      return `<tr data-n="${seg.n}"><td class="l">T${seg.n}</td>${pair(r.peakLatG, l.peakLatG, 1)}${pair(r.steerPerG === null ? null : r.steerPerG * 100, l.steerPerG === null ? null : l.steerPerG * 100)}${pair(r.rearSlides, l.rearSlides)}${pair(r.frontSlides, l.frontSlides)}</tr>`;
+    }).join("");
+    tb.querySelectorAll("tr[data-n]").forEach((tr) => {
+      const sg = segs.find((x) => x.n === +tr.dataset.n);
+      tr.onclick = () => { zoom = [sg.d0, sg.d1]; render(); };
+      tr.onmouseenter = () => { cursorD = sg.apexD; renderCursor(); };
+      tr.onmouseleave = () => { cursorD = null; renderCursor(); };
+    });
+  }
+
+  // Garage setup of both laps, side by side. A value that differs is the candidate cause of a
+  // behaviour difference in the traces; the hash says at a glance whether anything differs at all.
+  function drawSetup() {
+    const r = ref.setup, l = lap.setup;
+    if (!r || !l) { $("setup-note").textContent = "no setup recorded"; $("setup").innerHTML = ""; return; }
+    const rows = SETUP_FIELDS, get = setupGet;
+    let diffs = 0;
+    $("setup").innerHTML = rows.map(([label, k, unit = ""]) => {
+      const a = get(r, k), b = get(l, k), same = a === b;
+      if (!same) diffs++;
+      return `<div><div class="k">${label}</div>` +
+        (same ? `<span>${a}${unit}</span>` : `<span class="ref">${a}${unit}</span> → <span class="diff">${b}${unit}</span>`) + `</div>`;
+    }).join("");
+    $("setup-note").textContent = r.hash === l.hash ? `identical (${r.hash})` : `${diffs} differences · ${r.hash} → ${l.hash}`;
+  }
+
+  // ---- consistency ----
+  function drawConsistency() {
+    const picks = $("cons-picks");
+    const byFile = (f) => laps.find((l) => l.file === f);
+    picks.innerHTML = trackLaps.map((l) => {
+      const on = consSel.has(l.file), m = byFile(l.file);
+      return `<label class="${on ? "on" : ""} ${l.valid ? "" : "invalid"}"><input type="checkbox" data-f="${l.file}" ${on ? "checked" : ""}>L${l.lapNum} ${fmt(l.lapTimeMs)}${l.valid ? "" : " ✗"} · ${l.tags.setupHash} · ${m ? m.recordedAt.slice(5, 16).replace("T", " ") : ""}</label>`;
+    }).join("");
+    picks.querySelectorAll("input").forEach((cb) => cb.onchange = () => { cb.checked ? consSel.add(cb.dataset.f) : consSel.delete(cb.dataset.f); drawConsistency(); });
+
+    const chosen = trackLaps.filter((l) => consSel.has(l.file));
+    const tb = $("cons-table").querySelector("tbody");
+    if (chosen.length < 2) {
+      $("cons-note").textContent = `${chosen.length} lap picked · pick at least two`;
+      tb.innerHTML = ""; $("cons-sum").textContent = ""; consRows = null; drawConsStrip(); return;
+    }
+    const c = consistency(chosen, segs);
+    consRows = c.corners.filter((r) => r.best !== null).sort((a, b) => b.spread - a.spread);
+    const hashes = new Set(chosen.map((l) => l.tags.setupHash));
+    $("cons-note").textContent = `${chosen.length} laps · ${hashes.size === 1 ? "one setup, so spread is driver only" : hashes.size + " setups mixed, spread includes setup"}`;
+    tb.innerHTML = consRows.map((r) => `<tr data-n="${r.n}">
+      <td class="l">T${r.n}</td><td class="gain">${(r.best / 1000).toFixed(3)}</td><td class="ref">L${r.bestLap.lapNum}</td>
+      <td>${(r.median / 1000).toFixed(3)}</td><td class="loss">${(r.worst / 1000).toFixed(3)}</td>
+      <td style="color:${r.spread > 500 ? "#e74c3c" : r.spread > 200 ? "#f39c12" : "#2ecc40"}">${(r.spread / 1000).toFixed(3)}</td>
+      <td>${r.entries.length}</td></tr>`).join("");
+    tb.querySelectorAll("tr[data-n]").forEach((tr) => {
+      const sg = segs.find((x) => x.n === +tr.dataset.n);
+      tr.onclick = () => { zoom = [sg.d0, sg.d1]; render(); };
+      tr.onmouseenter = () => { cursorD = sg.apexD; renderCursor(); };
+      tr.onmouseleave = () => { cursorD = null; renderCursor(); };
+    });
+    const bestLap = chosen.reduce((a, b) => (b.lapTimeMs < a.lapTimeMs ? b : a));
+    $("cons-sum").innerHTML = c.allCovered
+      ? `best corners stitched together <b class="gain">${fmt(c.sumBest)}</b> · best real lap <span class="ref">${fmt(bestLap.lapTimeMs)}</span> (L${bestLap.lapNum}) · <b>${fmtD(bestLap.lapTimeMs - c.sumBest)}s</b> is already in you, it is only not in one lap yet`
+      : `some corners are not covered by every lap, so no stitched lap time`;
+    drawConsStrip();
+  }
+
+  // One row per corner, x = time lost vs the best attempt at that corner. A bar spans best→worst,
+  // one dot per lap. The corner you are hovering anywhere else on the page is lit.
+  function drawConsStrip() {
+    const cv = $("cons-strip"), ctx = cv.getContext("2d");
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    if (!consRows || !consRows.length) { ctx.fillStyle = "#555"; ctx.font = "11px monospace"; ctx.textAlign = "center"; ctx.fillText("pick two or more laps", cv.width / 2, cv.height / 2); return; }
+    const rowH = Math.min(22, (cv.height - 24) / consRows.length), x0 = 50, w = cv.width - x0 - 20;
+    const lim = Math.max(500, ...consRows.map((r) => r.spread)) * 1.05;
+    const sx = (ms) => x0 + (ms / lim) * w;
+    ctx.font = "10px monospace"; ctx.textBaseline = "middle";
+    ctx.fillStyle = "#888"; ctx.textAlign = "left"; ctx.fillText("0", sx(0), 10); ctx.textAlign = "right"; ctx.fillText("+" + (lim / 1000).toFixed(2) + "s", sx(lim), 10);
+    const hover = cursorD === null ? null : segAt(cursorD), active = zoom ? segs.find((s) => s.d0 === zoom[0]) : null;
+    consRows.forEach((r, i) => {
+      const y = 24 + i * rowH + rowH / 2, lit = (hover && hover.n === r.n) || (active && active.n === r.n);
+      if (lit) { ctx.fillStyle = "#1a1a1a"; ctx.fillRect(0, y - rowH / 2, cv.width, rowH); }
+      ctx.fillStyle = lit ? "#2ecc40" : "#888"; ctx.textAlign = "left"; ctx.fillText("T" + r.n, 8, y);
+      ctx.fillStyle = "#333"; ctx.fillRect(sx(0), y - 1, sx(r.spread) - sx(0), 2);
+      for (const e of r.entries) {
+        const mine = e.lap.file === lap.file, theirs = e.lap.file === ref.file;
+        ctx.fillStyle = mine ? "#2ecc40" : theirs ? "#bbb" : "#666";
+        ctx.beginPath(); ctx.arc(sx(e.time - r.best), y, mine || theirs ? 4 : 3, 0, Math.PI * 2); ctx.fill();
+      }
+    });
+    cv.onmousemove = (e) => {
+      const [, y] = canvasXY(cv, e); const i = Math.floor((y - 24) / rowH);
+      const r = consRows[i]; cursorD = r ? r.seg.apexD : null; renderCursor();
+    };
+    cv.onmouseleave = () => { cursorD = null; renderCursor(); };
+    cv.onclick = (e) => {
+      const [, y] = canvasXY(cv, e); const r = consRows[Math.floor((y - 24) / rowH)];
+      if (!r) return; zoom = [r.seg.d0, r.seg.d1]; render();
+    };
+  }
+
+  // ---- setup A/B ----
+  // Load every lap on the current track (cached), group by setup hash, and compare two groups.
+  // Flashback/incomplete laps are excluded; track-limit "invalid" laps stay in, the median absorbs them.
+  async function loadGroups() {
+    const trackId = lap.track.id;
+    const files = laps.filter((l) => l.track.id === trackId && !l.flags.includes("flashback") && !l.flags.includes("incomplete")).map((l) => l.file);
+    const full = await Promise.all(files.map(loadLap));
+    if (lap.track.id !== trackId) return; // user switched track meanwhile
+    trackLaps = full;
+    // default pick: laps that share this lap's setup, so the spread is driver only
+    if (!consSel) {
+      const same = full.filter((l) => l.tags.setupHash === lap.tags.setupHash);
+      consSel = new Set((same.length >= 2 ? same : full).map((l) => l.file));
+    }
+    drawConsistency();
+    groups = setupGroups(full, segs);
+    if (!groups.find((g) => g.hash === abA)) abA = groups[0]?.hash ?? null;
+    if (!groups.find((g) => g.hash === abB && g.hash !== abA)) abB = groups.find((g) => g.hash !== abA)?.hash ?? null;
+    drawAB();
+  }
+
+  function drawAB() {
+    const el = $("ab"), note = $("ab-note");
+    if (groups.length < 2) {
+      const g = groups[0];
+      note.textContent = g ? `1 setup so far (${g.hash}, ${g.n} laps)` : "no setups recorded";
+      el.innerHTML = ``;
+      return;
+    }
+    note.textContent = `${groups.length} setups · pick two`;
+    const A = groups.find((g) => g.hash === abA), B = groups.find((g) => g.hash === abB);
+    const opt = (sel) => groups.map((g) => `<option value="${g.hash}" ${g.hash === sel ? "selected" : ""}>${g.hash} · ${g.n} laps · best ${fmt(g.bestMs)} · median ${fmt(g.medianMs)}</option>`).join("");
+    const rows = compareSetupGroups(A, B).filter((r) => r.dTime !== null).sort((x, y) => Math.abs(y.dTime) - Math.abs(x.dTime));
+    const gain = rows.filter((r) => r.dTime < -30), loss = rows.filter((r) => r.dTime > 30);
+    const sum = (rs) => rs.reduce((t, r) => t + r.dTime, 0);
+    const n = (v, dp = 0) => (v === null ? "--" : v.toFixed(dp));
+    const pair = (a, b, dp = 0) => `<td class="sep a">${n(a, dp)}</td><td class="b">${n(b, dp)}</td>`;
+    const diffs = SETUP_FIELDS.filter(([, k]) => setupGet(A.setup, k) !== setupGet(B.setup, k));
+
+    el.innerHTML = `
+      <div class="ab-top">
+        <div><span class="label a">A</span><select id="ab-a">${opt(abA)}</select></div>
+        <div><span class="label b">B</span><select id="ab-b">${opt(abB)}</select></div>
+      </div>
+      <div class="ab-cols">
+        <div>
+          <div class="label">PER CORNER · <span class="a">A</span> vs <span class="b">B</span> · Δ = B − A · sorted by size of the difference</div>
+          <div style="overflow-x:auto"><table id="ab-table">
+            <thead>
+              <tr class="grp"><th rowspan="2" class="l">T</th><th colspan="3">TIME s</th><th colspan="2">MIN mph</th><th colspan="2">BRAKE PT m</th><th colspan="2">FULL THR m</th><th colspan="2">COAST m</th><th rowspan="2">LAPS</th></tr>
+              <tr><th class="a">A</th><th class="b">B</th><th>Δ</th><th class="a">A</th><th class="b">B</th><th class="a">A</th><th class="b">B</th><th class="a">A</th><th class="b">B</th><th class="a">A</th><th class="b">B</th></tr>
+            </thead>
+            <tbody>${rows.map((r) => `<tr data-n="${r.n}">
+              <td class="l">T${r.n}</td>
+              <td class="sep a">${(r.a.time / 1000).toFixed(3)}</td><td class="b">${(r.b.time / 1000).toFixed(3)}</td><td class="${resultClass(r.dTime)}">${fmtD(r.dTime)}</td>
+              ${pair(r.a.minSpeed * MPH, r.b.minSpeed * MPH)}${pair(r.a.brakeBefore, r.b.brakeBefore)}${pair(r.a.throttleAfter, r.b.throttleAfter)}${pair(r.a.coastM, r.b.coastM)}
+              <td>${r.a.laps}/${r.b.laps}</td></tr>`).join("")}</tbody>
+          </table></div>
+        </div>
+        <div>
+          <div class="label">WHAT THE LAPS MEASURED</div>
+          <div style="margin-top:4px">
+            <span class="b">B</span> gains in ${gain.length ? gain.map((r) => "T" + r.n).join(", ") + ` <span class="gain" style="color:#2ecc40">(${fmtD(sum(gain))}s)</span>` : "no corner"} ·
+            loses in ${loss.length ? loss.map((r) => "T" + r.n).join(", ") + ` <span style="color:#e74c3c">(${fmtD(sum(loss))}s)</span>` : "no corner"} ·
+            net over all corners <b>${fmtD(sum(rows))}s</b> per lap
+          </div>
+          <div class="label">SETUP DIFFERENCES · <span class="a">A</span> → <span class="b">B</span> · ${diffs.length || "none"}</div>
+          <div class="kv">${diffs.map(([label, k, unit = ""]) => `<div><div class="k">${label}</div><span class="a">${setupGet(A.setup, k)}${unit}</span> → <span class="b">${setupGet(B.setup, k)}${unit}</span></div>`).join("")}</div>
+        </div>
+      </div>`;
+    $("ab-a").onchange = (e) => { abA = e.target.value; if (abB === abA) abB = groups.find((g) => g.hash !== abA)?.hash ?? null; drawAB(); };
+    $("ab-b").onchange = (e) => { abB = e.target.value; if (abA === abB) abA = groups.find((g) => g.hash !== abB)?.hash ?? null; drawAB(); };
+    // Hovering a corner row shows that corner on the map; clicking zooms the traces to it.
+    el.querySelectorAll("#ab-table tr[data-n]").forEach((tr) => {
+      const sg = segs.find((x) => x.n === +tr.dataset.n);
+      tr.onclick = () => { zoom = [sg.d0, sg.d1]; render(); };
+      tr.onmouseenter = () => { cursorD = sg.apexD; renderCursor(); };
+      tr.onmouseleave = () => { cursorD = null; renderCursor(); };
+    });
+  }
+
+  loadList();
+</script>
+</body>
+</html>

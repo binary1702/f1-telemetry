@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setups</title>
+<style>
+  body { margin: 0; padding: 10px 16px; background: #111; color: #eee; font: 13px/1.4 ui-monospace, Menlo, monospace; max-width: 1200px; }
+  h1 { font-size: 14px; margin: 0; letter-spacing: 0.1em; white-space: nowrap; }
+  h2 { font-size: 10px; color: #888; letter-spacing: 0.15em; margin: 14px 0 4px; font-weight: normal; }
+  a { color: #888; }
+  select { background: #1a1a1a; color: #eee; border: 1px solid #444; padding: 4px; font: inherit; }
+  button { background: #1a1a1a; color: #eee; border: 1px solid #444; padding: 2px 10px; font: inherit; font-size: 11px; cursor: pointer; }
+  button.on { border-color: #2ecc40; color: #2ecc40; }
+  .top { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .card { border: 1px solid #2a2a2a; border-radius: 6px; padding: 8px 12px; margin-top: 4px; background: #0d0d0d; }
+  .card h2 { margin: 10px 0 2px; }
+  .card h2:first-child { margin-top: 0; }
+  table { border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: right; padding: 2px 12px 2px 0; white-space: nowrap; vertical-align: top; }
+  td.wrap { white-space: normal; }
+  th { font-size: 10px; color: #888; letter-spacing: 0.1em; font-weight: normal; }
+  th.l, td.l { text-align: left; }
+  tbody tr { cursor: pointer; } tbody tr:hover { background: #1a1a1a; }
+  tr.picked-a td:first-child { color: #3498db; } tr.picked-b td:first-child { color: #f39c12; }
+  .a { color: #3498db; } .b { color: #f39c12; }
+  .good { color: #2ecc40; } .bad { color: #f1c40f; } .purple { color: #b57bee; }
+  .big { font-size: 17px; line-height: 1.3; }
+  .dim { color: #777; }
+  .line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .k { color: #888; display: inline-block; width: 90px; }
+  .invalid { background: #3a1212; }
+  .details { display: none; }
+  .details.open { display: block; }
+  .small table { font-size: 11px; } .small th, .small td { padding: 1px 8px 1px 0; }
+  tr.grp th { text-align: center; border-bottom: 1px solid #333; } tr.grp th + th { border-left: 1px solid #333; }
+  td.sep { border-left: 1px solid #222; }
+  .two { display: grid; grid-template-columns: 300px 1fr; gap: 0 20px; align-items: start; }
+  @media (max-width: 900px) { .two { grid-template-columns: 1fr; } }
+  canvas { background: #0a0a0a; border: 1px solid #222; display: block; width: 100%; }
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>SETUPS <a href="/">← coach</a> <a href="/live">live</a> <a href="/compare">compare →</a></h1>
+  <select id="track"></select>
+  <button id="valid-only" title="only count laps the game marked clean">CLEAN LAPS ONLY</button>
+  <span id="note" class="dim">loading…</span>
+</div>
+
+<h2>SETUPS · fastest first · click = A, click another = B</h2>
+<div class="card">
+  <table id="rank"><thead><tr><th class="l">SETUP</th><th>LAPS</th><th>BEST</th><th>MEDIAN</th><th class="l">VS FASTEST</th></tr></thead><tbody></tbody></table>
+</div>
+
+<h2><span class="a">A</span> vs <span class="b">B</span></h2>
+<div class="card">
+  <div class="top">
+    <span class="a">A</span> <select id="ab-a"></select>
+    <span class="b">B</span> <select id="ab-b"></select>
+    <span id="confidence" class="dim" style="font-size:11px"></span>
+  </div>
+  <div id="verdict" class="big line" style="margin-top:6px"></div>
+
+  <div class="two">
+    <div>
+      <h2>CHANGED</h2>
+      <table id="changes"><tbody></tbody></table>
+    </div>
+    <div>
+      <h2>CORNER TIME · B − A · s</h2>
+      <canvas id="corner-chart" width="700" height="190"></canvas>
+      <h2>STEER PER g AT APEX · <span class="a">A</span> <span class="b">B</span> · dots: <span class="purple">●</span> oversteer <span class="bad">●</span> understeer</h2>
+      <canvas id="balance-chart" width="700" height="170"></canvas>
+    </div>
+  </div>
+</div>
+
+<h2>LAPS</h2>
+<div class="card small">
+  <table id="laps"><thead><tr><th class="l">SETUP</th><th>LAP</th><th>TIME</th><th class="l">CLEAN?</th><th class="l">TYRE</th><th class="l">WHEN</th></tr></thead><tbody></tbody></table>
+</div>
+
+<h2>TABLES <button id="toggle-details">SHOW</button></h2>
+<div id="details" class="details card small">
+  <h2 style="margin-top:4px">ALL SETTINGS · differences from A in orange</h2>
+  <div style="overflow-x:auto"><table id="setup-table"><thead></thead><tbody></tbody></table></div>
+  <h2>PER CORNER · <span class="a">A</span> / <span class="b">B</span></h2>
+  <div style="overflow-x:auto"><table id="corners">
+    <thead>
+      <tr class="grp"><th rowspan="2" class="l">TURN</th><th colspan="3">TIME s</th><th colspan="2">MIN mph</th><th colspan="2">BRAKE m</th><th colspan="2">THROTTLE m</th><th colspan="2">COAST m</th><th rowspan="2">LAPS</th></tr>
+      <tr><th class="a">A</th><th class="b">B</th><th>B−A</th><th class="a">A</th><th class="b">B</th><th class="a">A</th><th class="b">B</th><th class="a">A</th><th class="b">B</th><th class="a">A</th><th class="b">B</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table></div>
+  <h2>BALANCE · <span class="a">A</span> / <span class="b">B</span> · <span id="bal-note" class="dim"></span></h2>
+  <div style="overflow-x:auto"><table id="balance">
+    <thead>
+      <tr class="grp"><th rowspan="2" class="l">TURN</th><th colspan="2">PEAK g</th><th colspan="2">STEER / g</th><th colspan="2">REAR SLIDES</th><th colspan="2">FRONT WASHES</th></tr>
+      <tr><th class="a">A</th><th class="b">B</th><th class="a">A</th><th class="b">B</th><th class="a">A</th><th class="b">B</th><th class="a">A</th><th class="b">B</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table></div>
+</div>
+
+  <div><b>Understeer</b>: the car pushes wide, it turns less than you asked.</div>
+  <div><b>Apex</b>: the middle of the corner, closest to the inside.</div>
+  <div><b>Brake point</b>: where you first brake before a corner. Later = faster, until you miss it.</div>
+  <div><b>Downforce</b>: wings pressing the car down. More wing = more corner grip, less straight speed.</div>
+  <div><b>Differential</b>: how the rear wheels are linked. High % = stable, pushes wide. Low % = rotates, can snap.</div>
+  <div><b>Anti-roll bar</b>: resists leaning. Stiffer front = pushes wide. Stiffer rear = looser back.</div>
+</div>
+
+<script type="module">
+  import { cornerSegments, setupGroups, compareSetupGroups, groupBalance } from "/analysis.js";
+
+  const $ = (id) => document.getElementById(id);
+  const fmt = (ms) => { const m = Math.floor(ms / 60000), s = ((ms % 60000) / 1000).toFixed(3).padStart(6, "0"); return `${m}:${s}`; };
+  const secs = (ms) => (Math.abs(ms) / 1000).toFixed(2) + " s";
+  const n = (v, dp = 0) => (v === null || v === undefined ? "--" : v.toFixed(dp));
+  const MPH = 0.621371;
+
+  // Every garage setting, with what moving it UP does, in plain words. Direction text is used
+  // to explain a change: "up" when B > A, "down" when B < A.
+  const FIELDS = [
+    ["Front wing", "frontWing", "", "more front grip, the car turns in sharper (can make the rear feel loose)", "less front grip, the car pushes wide more"],
+    ["Rear wing", "rearWing", "", "more rear grip and stability, slower on the straights", "less rear grip, faster on the straights, rear can slide more"],
+    ["Diff on throttle", "diffOnThrottle", "%", "rear wheels locked together more when you accelerate: more traction, but pushes wide", "rear wheels freer when you accelerate: the car rotates more on the gas, can snap into oversteer"],
+    ["Diff off throttle", "diffOffThrottle", "%", "more stable when you lift and brake into a corner", "the car rotates more when you lift and brake into a corner"],
+    ["Front camber", "frontCamber", "°", "less tilt: more grip in a straight line, less in corners", "more tilt: more front grip in corners"],
+    ["Rear camber", "rearCamber", "°", "less tilt: more rear grip in a straight line, less in corners", "more tilt: more rear grip in corners"],
+    ["Front toe", "frontToe", "°", "quicker turn-in, a bit less stable", "calmer, slower turn-in"],
+    ["Rear toe", "rearToe", "°", "more rear stability", "a more lively rear"],
+    ["Front suspension", "frontSuspension", "", "stiffer front: sharper response, less grip over bumps and kerbs", "softer front: more front grip, lazier response"],
+    ["Rear suspension", "rearSuspension", "", "stiffer rear: sharper, rear can slide more", "softer rear: more traction and stability"],
+    ["Front anti-roll bar", "frontAntiRollBar", "", "stiffer front bar: the car pushes wide more", "softer front bar: the car turns in better"],
+    ["Rear anti-roll bar", "rearAntiRollBar", "", "stiffer rear bar: the rear is looser", "softer rear bar: the rear is more planted"],
+    ["Front ride height", "frontRideHeight", "", "higher front: less downforce at the front", "lower front: more front downforce, risk of scraping"],
+    ["Rear ride height", "rearRideHeight", "", "higher rear: less rear downforce", "lower rear: more rear downforce, risk of scraping"],
+    ["Brake pressure", "brakePressure", "%", "harder braking, easier to lock a wheel", "gentler braking, longer stopping"],
+    ["Brake bias", "brakeBias", "%", "more braking at the front: stable, front wheels lock first", "more braking at the rear: the car rotates into corners, rear can lock"],
+    ["Engine braking", "engineBraking", "%", "the engine slows you more when you lift: helps turn-in", "the car coasts more freely when you lift"],
+    ["Ballast", "ballast", "", "weight moved back", "weight moved forward"],
+    ["Front tyre pressure", (s) => (s.tyrePressure[2] + s.tyrePressure[3]) / 2, " psi", "harder front tyres: less grip, cooler", "softer front tyres: more grip, hotter"],
+    ["Rear tyre pressure", (s) => (s.tyrePressure[0] + s.tyrePressure[1]) / 2, " psi", "harder rear tyres: less grip, cooler", "softer rear tyres: more grip, hotter"],
+    ["Fuel load", "fuelLoad", " laps", "heavier car, slower everywhere", "lighter car, quicker everywhere"],
+  ];
+  const get = (s, k) => (typeof k === "function" ? k(s) : s[k]);
+
+  let all = [], trackId = null, groups = [], abA = null, abB = null;
+  let validOnly = localStorage.getItem("validOnly") === "1";
+  const lapCache = {};
+  async function loadLap(file) { return (lapCache[file] ??= { ...(await (await fetch(`/api/lap?f=${encodeURIComponent(file)}`)).json()), file }); }
+
+  async function init() {
+    all = await (await fetch("/api/laps")).json();
+    $("valid-only").className = validOnly ? "on" : "";
+    const tracks = [...new Map(all.map((l) => [l.track.id, l.track])).values()];
+    if (!tracks.length) { $("note").textContent = "no recorded laps yet"; return; }
+    $("track").innerHTML = tracks.map((t) => `<option value="${t.id}">${t.name}</option>`).join("");
+    trackId = tracks[0].id;
+    $("track").value = trackId;
+    await load();
+  }
+  $("track").onchange = async (e) => { trackId = +e.target.value; abA = abB = null; await load(); };
+  $("valid-only").onclick = async () => { validOnly = !validOnly; localStorage.setItem("validOnly", validOnly ? "1" : "0"); $("valid-only").className = validOnly ? "on" : ""; await load(); };
+  $("toggle-details").onclick = () => { const d = $("details"); d.classList.toggle("open"); $("toggle-details").textContent = d.classList.contains("open") ? "HIDE DETAILS" : "SHOW DETAILS"; };
+
+  async function load() {
+    $("note").textContent = "loading…";
+    const metas = all.filter((l) => l.track.id === trackId && !l.flags.includes("incomplete") && !l.flags.includes("flashback") && (!validOnly || l.valid));
+    const [full, outlineRes] = await Promise.all([Promise.all(metas.map((m) => loadLap(m.file))), fetch(`/tracks/${trackId}.json`)]);
+    const outline = outlineRes.ok ? await outlineRes.json() : null;
+    const segs = outline && full.length ? cornerSegments(outline, full[0].track.length) : [];
+    groups = setupGroups(full, segs).sort((x, y) => x.bestMs - y.bestMs); // fastest first
+    for (const g of groups) g.balance = groupBalance(g.laps, segs);
+    if (!groups.find((g) => g.hash === abA)) abA = groups[0]?.hash ?? null;
+    if (!groups.find((g) => g.hash === abB && g.hash !== abA)) abB = groups.find((g) => g.hash !== abA)?.hash ?? null;
+    $("note").textContent = `${groups.length} setup${groups.length === 1 ? "" : "s"} · ${full.length} laps`;
+    render();
+  }
+
+  const A = () => groups.find((g) => g.hash === abA), B = () => groups.find((g) => g.hash === abB);
+  const pick = (h, asB) => {
+    if (asB) { abB = h; if (abA === h) abA = groups.find((g) => g.hash !== h)?.hash ?? null; }
+    else { abA = h; if (abB === h) abB = groups.find((g) => g.hash !== h)?.hash ?? null; }
+    render();
+  };
+
+  function render() { renderRank(); renderCompare(); renderLaps(); renderDetails(); }
+
+  // ---- 1. ranking ----
+  function describe(g) {
+    // the two or three settings that most distinguish this setup from the fastest one
+    const top = groups[0];
+    if (g === top) return "your fastest setup";
+    const all = FIELDS.filter(([, k]) => get(g.setup, k) !== get(top.setup, k)), d = all.slice(0, 2);
+    return d.length ? d.map(([label, k, unit]) => `${label.toLowerCase()} ${get(top.setup, k)}${unit}→${get(g.setup, k)}${unit}`).join(", ") + (all.length > 2 ? ` +${all.length - 2} more` : "") : "same settings as the fastest";
+  }
+  function renderRank() {
+    const tb = $("rank").querySelector("tbody");
+    tb.innerHTML = groups.map((g, i) => `<tr data-h="${g.hash}" class="${g.hash === abA ? "picked-a" : g.hash === abB ? "picked-b" : ""}">
+      <td class="l">${g.hash === abA ? "A · " : g.hash === abB ? "B · " : ""}#${i + 1} ${g.hash}</td><td>${g.n}</td><td class="${i === 0 ? "purple" : ""}">${fmt(g.bestMs)}</td><td>${fmt(g.medianMs)}</td><td class="l dim">${describe(g)}</td></tr>`).join("");
+    // plain rule: first click sets A, clicking another row sets B, clicking B again swaps it to A
+    tb.querySelectorAll("tr").forEach((tr) => tr.onclick = () => {
+      const h = tr.dataset.h;
+      if (h === abA) return;
+      if (h === abB) { [abA, abB] = [abB, abA]; render(); return; }
+      pick(h, abA !== null);
+    });
+  }
+
+  // ---- 2. compare ----
+  function renderCompare() {
+    const opt = (sel) => groups.map((g) => `<option value="${g.hash}" ${g.hash === sel ? "selected" : ""}>${g.hash} · best ${fmt(g.bestMs)} · ${g.n} laps</option>`).join("");
+    $("ab-a").innerHTML = opt(abA); $("ab-b").innerHTML = opt(abB);
+    $("ab-a").onchange = (e) => pick(e.target.value, false);
+    $("ab-b").onchange = (e) => pick(e.target.value, true);
+    const a = A(), b = B();
+    if (!a || !b) {
+      $("verdict").textContent = groups.length ? "Only one setup so far. Change one thing in the garage, drive at least three laps, and come back." : "No laps yet.";
+      $("confidence").textContent = ""; $("changes").innerHTML = ""; $("corners-plain").innerHTML = ""; $("behaviour").innerHTML = ""; return;
+    }
+    const rows = compareSetupGroups(a, b).filter((r) => r.dTime !== null).sort((x, y) => Math.abs(y.dTime) - Math.abs(x.dTime));
+    const gain = rows.filter((r) => r.dTime < -30), loss = rows.filter((r) => r.dTime > 30);
+    const net = rows.reduce((t, r) => t + r.dTime, 0);
+    const bestD = b.bestMs - a.bestMs;
+
+    // verdict in one sentence, from the corner medians (what the car did), then the best-lap fact
+    let v;
+    if (Math.abs(net) < 100) v = `<span class="dim">About the same</span> through the corners`;
+    else if (net < 0) v = `<span class="good">B quicker</span> through the corners by ~${secs(net)}/lap`;
+    else v = `<span class="bad">B slower</span> through the corners by ~${secs(net)}/lap`;
+    v += ` · best lap <span class="a">${fmt(a.bestMs)}</span> → <span class="b">${fmt(b.bestMs)}</span>` + (bestD === 0 ? "" : ` (<span class="${bestD < 0 ? "good" : "bad"}">${bestD < 0 ? "−" : "+"}${secs(bestD)}</span>)`);
+    $("verdict").innerHTML = v;
+    const few = Math.min(a.n, b.n);
+    $("confidence").textContent = few < 3 ? `only ${few} lap${few === 1 ? "" : "s"} on ${a.n < b.n ? "A" : "B"}` : `${a.n} / ${b.n} laps`;
+
+    // changes with plain-language meaning
+    const changes = FIELDS.filter(([, k]) => get(a.setup, k) !== get(b.setup, k));
+    $("changes").querySelector("tbody").innerHTML = changes.length ? changes.map(([label, k, unit, up, down]) => {
+      const va = get(a.setup, k), vb = get(b.setup, k), isUp = vb > va;
+      return `<tr><td class="l">${label}</td><td class="l"><span class="a">${va}${unit}</span> → <span class="b">${vb}${unit}</span></td></tr>`;
+    }).join("") : `<tr><td class="l dim">identical</td></tr>`;
+
+    drawCornerChart(rows);
+    drawBalanceChart(a, b, rows);
+  }
+
+  // ---- charts ----
+  function drawCornerChart(rows) {
+    const c = $("corner-chart"), ctx = c.getContext("2d"), W = c.width, H = c.height;
+    ctx.clearRect(0, 0, W, H);
+    const byTurn = rows.slice().sort((x, y) => x.n - y.n);
+    if (!byTurn.length) return;
+    const lim = Math.max(100, ...byTurn.map((r) => Math.abs(r.dTime))) * 1.15;
+    const x0 = 30, w = (W - x0 - 10) / byTurn.length, mid = H / 2 - 6;
+    const sy = (ms) => mid - (ms / lim) * (H / 2 - 24);
+    ctx.fillStyle = "#333"; ctx.fillRect(x0, mid, W - x0 - 10, 1);
+    ctx.font = "10px monospace"; ctx.textAlign = "right"; ctx.fillStyle = "#888";
+    ctx.fillText("+" + (lim / 1000).toFixed(1), x0 - 4, sy(lim) + 8); ctx.fillText("−" + (lim / 1000).toFixed(1), x0 - 4, sy(-lim));
+    ctx.textAlign = "center";
+    byTurn.forEach((r, i) => {
+      const x = x0 + i * w + w * 0.2, bw = w * 0.6, y = sy(r.dTime);
+      ctx.fillStyle = r.dTime < -30 ? "#2ecc40" : r.dTime > 30 ? "#f1c40f" : "#666";
+      ctx.fillRect(x, Math.min(y, mid), bw, Math.abs(y - mid));
+      ctx.fillStyle = "#ccc"; ctx.fillText((r.dTime > 0 ? "+" : "") + (r.dTime / 1000).toFixed(2), x + bw / 2, r.dTime < 0 ? y + 11 : y - 3);
+      ctx.fillStyle = "#888"; ctx.fillText("T" + r.n, x + bw / 2, H - 4);
+    });
+  }
+
+  function drawBalanceChart(a, b, rows) {
+    const c = $("balance-chart"), ctx = c.getContext("2d"), W = c.width, H = c.height;
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = "10px monospace"; ctx.textAlign = "center";
+    if (!a.balance || !b.balance) { ctx.fillStyle = "#555"; ctx.fillText("no balance data for " + (!a.balance && !b.balance ? "A or B" : !a.balance ? "A" : "B") + " (laps before the balance update)", W / 2, H / 2); return; }
+    const turns = rows.slice().sort((x, y) => x.n - y.n).map((r) => ({ n: r.n, a: a.balance.find((k) => k.n === r.n), b: b.balance.find((k) => k.n === r.n) })).filter((t) => t.a && t.b && t.a.laps && t.b.laps);
+    if (!turns.length) return;
+    const vals = turns.flatMap((t) => [t.a.steerPerG, t.b.steerPerG]).filter((v) => v !== null);
+    const lim = Math.max(0.05, ...vals) * 1.25;
+    const x0 = 30, w = (W - x0 - 10) / turns.length, base = H - 16, top = 14;
+    const sy = (v) => base - (v / lim) * (base - top);
+    ctx.textAlign = "right"; ctx.fillStyle = "#888"; ctx.fillText((lim * 100).toFixed(0), x0 - 4, top + 8); ctx.fillText("0", x0 - 4, base);
+    ctx.textAlign = "center";
+    // dots above a bar: purple per rear slide, yellow per front wash (max 3 each)
+    const dots = (x, y, count, color) => { ctx.fillStyle = color; let k = 0; for (; k < Math.min(3, Math.round(count)); k++) { ctx.beginPath(); ctx.arc(x, y - 6 - k * 8, 3, 0, Math.PI * 2); ctx.fill(); } return y - k * 8; };
+    turns.forEach((t, i) => {
+      const bw = w * 0.3, xa = x0 + i * w + w * 0.15, xb = xa + bw + w * 0.1;
+      for (const [x, g, col] of [[xa, t.a, "#3498db"], [xb, t.b, "#f39c12"]]) {
+        const y = g.steerPerG === null ? base : sy(g.steerPerG);
+        ctx.fillStyle = col; ctx.fillRect(x, y, bw, base - y);
+        const yAfter = dots(x + bw / 2, y, g.rearSlides, "#b57bee");
+        dots(x + bw / 2, yAfter, g.frontSlides, "#f1c40f");
+      }
+      ctx.fillStyle = "#888"; ctx.fillText("T" + t.n, xa + bw + w * 0.05, H - 4);
+    });
+  }
+
+  // ---- 3. laps ----
+  function renderLaps() {
+    const tb = $("laps").querySelector("tbody");
+    tb.innerHTML = groups.map((g) => g.laps.slice().sort((x, y) => x.lapTimeMs - y.lapTimeMs).map((l, i) =>
+      `<tr class="${l.valid ? "" : "invalid"}"><td class="l ${g.hash === abA ? "a" : g.hash === abB ? "b" : ""}">${i === 0 ? g.hash : ""}</td><td>L${l.lapNum}</td><td>${fmt(l.lapTimeMs)}</td>` +
+      `<td class="l">${l.valid ? "✓" : l.flags.join(",")}</td><td class="l">${l.tags.compound} ${l.tags.tyreAgeLaps}</td><td class="l">${l.recordedAt.slice(5, 16).replace("T", " ")}</td></tr>`
+    ).join("")).join("");
+  }
+
+  // ---- 4. the numbers ----
+  function renderDetails() {
+    const a = A(), b = B();
+    const t = $("setup-table");
+    t.querySelector("thead").innerHTML = `<tr><th class="l">SETTING</th>` + groups.map((g) =>
+      `<th class="${g.hash === abA ? "a" : g.hash === abB ? "b" : ""}">${g.hash === abA ? "A · " : g.hash === abB ? "B · " : ""}${g.hash}<br><span class="dim">${g.n} laps · ${fmt(g.bestMs)}</span></th>`).join("") + `</tr>`;
+    t.querySelector("tbody").innerHTML = FIELDS.map(([label, k, unit]) =>
+      `<tr><td class="l">${label}</td>` + groups.map((g) => `<td class="${a && get(a.setup, k) !== get(g.setup, k) ? "b" : ""}">${get(g.setup, k)}${unit}</td>`).join("") + `</tr>`).join("");
+    const ct = $("corners").querySelector("tbody"), bt = $("balance").querySelector("tbody");
+    if (!a || !b) { ct.innerHTML = ""; bt.innerHTML = ""; return; }
+    const rows = compareSetupGroups(a, b).filter((r) => r.dTime !== null).sort((x, y) => Math.abs(y.dTime) - Math.abs(x.dTime));
+    const pair = (x, y, dp = 0) => `<td class="sep a">${n(x, dp)}</td><td class="b">${n(y, dp)}</td>`;
+    ct.innerHTML = rows.map((r) => `<tr><td class="l">${r.n}</td><td class="sep a">${(r.a.time / 1000).toFixed(3)}</td><td class="b">${(r.b.time / 1000).toFixed(3)}</td><td class="${r.dTime < -30 ? "good" : r.dTime > 30 ? "bad" : ""}">${(r.dTime > 0 ? "+" : "") + (r.dTime / 1000).toFixed(3)}</td>${pair(r.a.minSpeed * MPH, r.b.minSpeed * MPH)}${pair(r.a.brakeBefore, r.b.brakeBefore)}${pair(r.a.throttleAfter, r.b.throttleAfter)}${pair(r.a.coastM, r.b.coastM)}<td>${r.a.laps}/${r.b.laps}</td></tr>`).join("");
+    if (!a.balance || !b.balance) { $("bal-note").textContent = "no balance data for " + (!a.balance && !b.balance ? "either" : !a.balance ? "A" : "B"); bt.innerHTML = ""; return; }
+    $("bal-note").textContent = "";
+    bt.innerHTML = rows.map((r) => { const x = a.balance.find((c) => c.n === r.n), y = b.balance.find((c) => c.n === r.n); if (!x || !y || !x.laps || !y.laps) return ""; return `<tr><td class="l">${r.n}</td>${pair(x.peakLatG, y.peakLatG, 1)}${pair(x.steerPerG === null ? null : x.steerPerG * 100, y.steerPerG === null ? null : y.steerPerG * 100)}${pair(x.rearSlides, y.rearSlides)}${pair(x.frontSlides, y.frontSlides)}</tr>`; }).join("");
+  }
+
+  init();
+</script>
+</body>
+</html>

@@ -1,0 +1,3 @@
+node_modules/
+# recorded lap data (one JSON per lap); remove this line if you want laps under version control
+laps/
