@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sessions</title>
+<style>
+  body { margin: 0; padding: 10px 12px; background: #111; color: #eee; font: 12px/1.35 ui-monospace, Menlo, monospace; }
+  h1 { font-size: 13px; margin: 0; letter-spacing: 0.1em; white-space: nowrap; }
+  a { color: #888; text-decoration: none; }
+  a:hover { color: #eee; }
+  .top { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+  .label { font-size: 10px; color: #888; letter-spacing: 0.15em; margin-top: 12px; margin-bottom: 4px; }
+  .date-group { margin-bottom: 16px; }
+  .date-header { font-size: 11px; color: #f39c12; letter-spacing: 0.1em; border-bottom: 1px solid #333; padding-bottom: 4px; margin-bottom: 8px; }
+  .session { background: #1a1a1a; border: 1px solid #333; padding: 8px 10px; margin-bottom: 6px; cursor: pointer; }
+  .session:hover { border-color: #555; background: #222; }
+  .session-header { display: flex; justify-content: space-between; align-items: center; }
+  .track-name { font-size: 13px; color: #2ecc40; }
+  .session-type { font-size: 10px; color: #888; margin-left: 8px; }
+  .session-time { font-size: 10px; color: #666; }
+  .session-stats { display: flex; gap: 16px; margin-top: 6px; font-size: 11px; color: #aaa; }
+  .stat { display: flex; gap: 4px; }
+  .stat-label { color: #666; }
+  .stat-value { color: #eee; }
+  .best-time { color: #b57bee; }
+  .laps-list { display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid #333; }
+  .laps-list.open { display: block; }
+  .lap-row { display: grid; grid-template-columns: 40px 80px 1fr 60px; gap: 8px; padding: 2px 0; font-size: 10px; }
+  .lap-row:hover { background: #252525; }
+  .lap-num { color: #666; }
+  .lap-time { color: #eee; font-family: inherit; }
+  .lap-time.best { color: #b57bee; }
+  .lap-time.invalid { color: #e74c3c; }
+  .lap-flags { color: #666; font-size: 9px; }
+  .lap-link { color: #3498db; font-size: 9px; }
+  .lap-link:hover { color: #5dade2; }
+  .empty { color: #666; padding: 20px; text-align: center; }
+  .summary { font-size: 11px; color: #888; margin-bottom: 12px; }
+  button { background: #1a1a1a; color: #eee; border: 1px solid #444; padding: 2px 8px; font: inherit; font-size: 10px; cursor: pointer; }
+  button:hover { border-color: #666; }
+  button.on { border-color: #2ecc40; color: #2ecc40; }
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>SESSIONS</h1>
+  <a href="/">coach</a>
+  <a href="/live">live</a>
+  <a href="/compare">compare</a>
+  <a href="/setups">setups</a>
+  <button id="valid-only">VALID ONLY</button>
+</div>
+
+<div id="summary" class="summary"></div>
+<div id="content"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let allLaps = [];
+let validOnly = localStorage.getItem("validOnly") === "1";
+
+function formatTime(ms) {
+  if (!ms || ms <= 0) return "--:--.---";
+  const m = Math.floor(ms / 60000);
+  const s = ((ms % 60000) / 1000).toFixed(3).padStart(6, "0");
+  return `${m}:${s}`;
+}
+
+function formatDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+}
+
+function formatTimeOfDay(iso) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+}
+
+function isValid(lap) {
+  return !lap.flags?.includes("invalid") && !lap.flags?.includes("flashback") && !lap.flags?.includes("incomplete");
+}
+
+function groupByDateAndSession(laps) {
+  const groups = {};
+  for (const lap of laps) {
+    const date = lap.recordedAt.slice(0, 10);
+    const key = `${date}|${lap.sessionUID}`;
+    if (!groups[key]) {
+      groups[key] = {
+        date,
+        sessionUID: lap.sessionUID,
+        track: lap.track,
+        sessionType: lap.sessionType,
+        firstRecorded: lap.recordedAt,
+        laps: []
+      };
+    }
+    groups[key].laps.push(lap);
+    if (lap.recordedAt < groups[key].firstRecorded) {
+      groups[key].firstRecorded = lap.recordedAt;
+    }
+  }
+  return Object.values(groups).sort((a, b) => b.firstRecorded.localeCompare(a.firstRecorded));
+}
+
+function groupByDate(sessions) {
+  const byDate = {};
+  for (const s of sessions) {
+    (byDate[s.date] ??= []).push(s);
+  }
+  return Object.entries(byDate)
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([date, sessions]) => ({ date, sessions }));
+}
+
+function render() {
+  const filtered = validOnly ? allLaps.filter(isValid) : allLaps;
+  const sessions = groupByDateAndSession(filtered);
+  const byDate = groupByDate(sessions);
+
+  const totalLaps = filtered.length;
+  const totalSessions = sessions.length;
+  const tracks = new Set(sessions.map(s => s.track.name));
+  $("summary").textContent = `${totalSessions} session${totalSessions !== 1 ? "s" : ""} · ${totalLaps} lap${totalLaps !== 1 ? "s" : ""} · ${tracks.size} track${tracks.size !== 1 ? "s" : ""}`;
+
+  if (!byDate.length) {
+    $("content").innerHTML = `<div class="empty">No sessions recorded yet. Start a session in F1 25 to begin.</div>`;
+    return;
+  }
+
+  let html = "";
+  for (const { date, sessions } of byDate) {
+    html += `<div class="date-group">`;
+    html += `<div class="date-header">${formatDate(date + "T00:00:00")}</div>`;
+
+    for (const s of sessions) {
+      const validLaps = s.laps.filter(l => !l.flags?.includes("incomplete"));
+      const bestLap = validLaps.reduce((best, l) => (!best || l.lapTimeMs < best.lapTimeMs) ? l : best, null);
+      const validCount = s.laps.filter(isValid).length;
+
+      html += `<div class="session" data-uid="${s.sessionUID}">`;
+      html += `<div class="session-header">`;
+      html += `<div><span class="track-name">${s.track.name}</span><span class="session-type">${s.sessionType}</span></div>`;
+      html += `<div class="session-time">${formatTimeOfDay(s.firstRecorded)}</div>`;
+      html += `</div>`;
+      html += `<div class="session-stats">`;
+      html += `<div class="stat"><span class="stat-label">laps</span> <span class="stat-value">${s.laps.length}</span></div>`;
+      html += `<div class="stat"><span class="stat-label">valid</span> <span class="stat-value">${validCount}</span></div>`;
+      if (bestLap) {
+        html += `<div class="stat"><span class="stat-label">best</span> <span class="stat-value best-time">${formatTime(bestLap.lapTimeMs)}</span></div>`;
+      }
+      html += `</div>`;
+
+      html += `<div class="laps-list" id="laps-${s.sessionUID}">`;
+      const sorted = [...s.laps].sort((a, b) => a.lapNum - b.lapNum);
+      for (const lap of sorted) {
+        const isBest = bestLap && lap.lapTimeMs === bestLap.lapTimeMs && lap.lapNum === bestLap.lapNum;
+        const isInvalid = !isValid(lap);
+        const flags = lap.flags?.filter(f => f !== "pit").join(", ") || "";
+        html += `<div class="lap-row">`;
+        html += `<span class="lap-num">L${lap.lapNum}</span>`;
+        html += `<span class="lap-time${isBest ? " best" : ""}${isInvalid ? " invalid" : ""}">${formatTime(lap.lapTimeMs)}</span>`;
+        html += `<span class="lap-flags">${flags}</span>`;
+        html += `<a class="lap-link" href="/compare?lap=${encodeURIComponent(lap.file)}">compare</a>`;
+        html += `</div>`;
+      }
+      html += `</div>`;
+      html += `</div>`;
+    }
+    html += `</div>`;
+  }
+
+  $("content").innerHTML = html;
+
+  document.querySelectorAll(".session").forEach(el => {
+    el.addEventListener("click", (e) => {
+      if (e.target.classList.contains("lap-link")) return;
+      const uid = el.dataset.uid;
+      const list = document.getElementById(`laps-${uid}`);
+      list.classList.toggle("open");
+    });
+  });
+}
+
+async function init() {
+  $("valid-only").className = validOnly ? "on" : "";
+  $("valid-only").onclick = () => {
+    validOnly = !validOnly;
+    localStorage.setItem("validOnly", validOnly ? "1" : "0");
+    $("valid-only").className = validOnly ? "on" : "";
+    render();
+  };
+
+  try {
+    allLaps = await (await fetch("/api/laps")).json();
+    render();
+  } catch (e) {
+    $("content").innerHTML = `<div class="empty">Failed to load laps: ${e.message}</div>`;
+  }
+}
+
+init();
+</script>
+</body>
+</html>

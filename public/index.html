@@ -15,22 +15,31 @@
   button { background: #1a1a1a; color: #eee; border: 1px solid #444; padding: 3px 12px; font: inherit; font-size: 12px; cursor: pointer; }
   button.on { border-color: #2ecc40; color: #2ecc40; }
   .label { font-size: 11px; color: #888; letter-spacing: 0.15em; }
-  .top { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; align-items: start; }
-  .huge { font-size: 96px; line-height: 1; font-weight: bold; letter-spacing: -0.03em; }
-  .huge.flat { color: #555; } .loss { color: #e74c3c; } .gain { color: #2ecc40; }
-  .big { font-size: 52px; line-height: 1.05; font-weight: bold; }
-  .big small { font-size: 22px; color: #aaa; font-weight: normal; }
-  .next { font-size: 30px; line-height: 1.1; color: #aaa; }
-  .next b { color: #eee; font-size: 42px; }
-  .next .brake { color: #eee; font-size: 56px; font-weight: bold; }
-  .next .zone { color: #e74c3c; font-size: 56px; font-weight: bold; }
-  .next .flat { color: #2ecc40; font-size: 56px; font-weight: bold; }
-  .plan { font-size: 22px; color: #aaa; margin-top: 4px; white-space: nowrap; }
+  .top { display: flex; gap: 12px; align-items: stretch; height: 70px; }
+  .current-delta { background: #1a1a1a; border: 1px solid #333; border-radius: 4px; padding: 0 20px; display: flex; align-items: center; justify-content: center; min-width: 180px; }
+  .current-delta .delta { font-size: 48px; font-weight: bold; letter-spacing: -0.02em; }
+  .current-delta .delta.flat { color: #555; }
+  .lap-history { display: flex; flex-direction: column; gap: 2px; flex: 1; overflow-y: auto; }
+  .lap-row { display: grid; grid-template-columns: 40px 65px 55px 1fr; gap: 6px; padding: 3px 8px; background: #1a1a1a; border: 1px solid #333; border-radius: 3px; align-items: center; font-size: 11px; }
+  .lap-row.current { border-color: #3498db; background: #1a2a3a; }
+  .lap-row.current .lap-delta { font-size: 14px; }
+  .lap-row .lap-num { color: #666; font-size: 10px; }
+  .lap-row .lap-time { font-weight: bold; color: #eee; }
+  .lap-row .lap-delta { font-weight: bold; }
+  .lap-row .sectors { display: flex; gap: 4px; }
+  .lap-row .sector { font-size: 10px; padding: 1px 5px; border-radius: 2px; background: #252525; color: #888; }
+  .lap-row .sector.gain { background: #1a3a1a; color: #2ecc40; }
+  .lap-row .sector.loss { background: #3a1a1a; color: #e74c3c; }
+  .lap-row .sector.best { background: #2a1a3a; color: #b57bee; }
+  .gear-display { background: #1a1a1a; border: 1px solid #333; border-radius: 4px; width: 70px; display: flex; align-items: center; justify-content: center; font-size: 48px; font-weight: bold; }
+  .loss { color: #e74c3c; } .gain { color: #2ecc40; }
+  .plan { font-size: 22px; color: #aaa; margin: 6px 0; white-space: nowrap; text-align: center; }
+  .plan .turn { color: #eee; font-weight: bold; margin-right: 12px; }
   .plan b { font-size: 28px; }
   .plan .r { color: #ff3b30; } .plan .w { color: #eee; } .plan .g { color: #2ecc40; } .plan .y { color: #f1c40f; }
   .main { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(380px, 1fr); gap: 20px; flex: 1; min-height: 0; }
   .main > div { min-height: 0; }
-  #live-right, #report { display: flex; flex-direction: column; gap: 10px; }
+  #live-right, #report { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; }
   #report { display: none; }
   body.report #report { display: flex; }
   .card { margin-bottom: 0; }
@@ -42,6 +51,44 @@
   canvas { display: block; width: 100%; }
   .left { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
   #map { background: #0a0a0a; border: 1px solid #333; flex: 1; min-height: 0; cursor: pointer; }
+  .corner-graphs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; border-top: 1px solid #333; padding-top: 8px; flex: 1; min-height: 0; }
+  .corner-graph { background: #0a0a0a; border: 1px solid #333; border-radius: 4px; padding: 6px; display: flex; flex-direction: column; min-height: 0; }
+  .corner-graph-label { font-size: 11px; color: #888; margin-bottom: 4px; display: flex; align-items: baseline; gap: 6px; }
+  .corner-graph-label .t { font-size: 18px; font-weight: bold; color: #eee; }
+  .corner-graph-label .delta { font-size: 14px; font-weight: bold; }
+  .corner-graph-label .next { color: #f39c12; }
+  .brake-dist { font-size: 16px; font-weight: bold; color: #e74c3c; margin-left: auto; }
+  .brake-dist.flat { color: #2ecc40; }
+  .brake-dist.zone { color: #f39c12; }
+  .corner-graph canvas { flex: 1; min-height: 150px; min-width: 0; }
+  .corner-graph-stats { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 10px; margin-top: 6px; }
+  .corner-graph-stats .stat { display: flex; gap: 4px; }
+  .corner-graph-stats .stat-label { color: #666; }
+  .corner-graph-stats .stat-value { color: #eee; font-weight: bold; }
+  .corner-graph-stats .brake { color: #e74c3c; }
+  .corner-graph-stats .trail { color: #f1c40f; }
+  .corner-graph-stats .apex { color: #fff; }
+  .corner-graph-stats .gas { color: #2ecc40; }
+  .corner-list { display: flex; flex-direction: column; gap: 2px; max-height: 300px; overflow-y: auto; }
+  .corner-list .corner-item { display: grid; grid-template-columns: 36px 50px 30px 70px 20px; gap: 6px; padding: 4px 8px; background: #1a1a1a; border: 1px solid #333; border-radius: 4px; cursor: pointer; font-size: 11px; align-items: center; }
+  .corner-list .corner-item .zones { display: flex; width: 70px; height: 8px; border-radius: 2px; overflow: hidden; background: #333; }
+  .corner-list .corner-item .zone-bar { height: 100%; }
+  .corner-list .corner-item .zone-brake { background: #e74c3c; }
+  .corner-list .corner-item .zone-trail { background: #f1c40f; }
+  .corner-list .corner-item .zone-gas { background: #2ecc40; }
+  .corner-list .corner-item:hover { background: #252525; border-color: #444; }
+  .corner-list .corner-item.focused { background: #2a2a1a; border-color: #f39c12; }
+  .corner-list .corner-item.next { border-left: 3px solid #f39c12; }
+  .corner-list .corner-item.last { background: #1a2a1a; }
+  .corner-list .corner-item.disabled { opacity: 0.4; text-decoration: line-through; }
+  .corner-list .corner-item .t { font-weight: bold; color: #eee; }
+  .corner-list .corner-item .delta { font-weight: bold; }
+  .corner-list .corner-item .speed { color: #666; text-align: right; font-size: 10px; }
+  .corner-list .corner-item .x { color: #666; font-size: 9px; text-align: center; }
+  .corner-list .corner-item .x:hover { color: #e74c3c; }
+  .corner-list .corner-item.disabled .x { color: #2ecc40; }
+  #corner-detail { margin-top: 8px; }
+  #corner-detail canvas { background: #0a0a0a; border: 1px solid #333; width: 100%; height: 150px; }
   .card.corner { display: grid; grid-template-columns: minmax(300px, 1fr) minmax(0, 1.2fr); gap: 0 16px; align-items: start; flex: none; }
   .card { border: 1px solid #2a2a2a; border-radius: 8px; padding: 10px 14px; background: #0d0d0d; margin-bottom: 10px; }
   .verdict { font-size: 34px; font-weight: bold; line-height: 1.1; }
@@ -69,41 +116,36 @@
   <span id="ref-note" class="sub"></span>
   <span style="flex:1"></span>
   <button id="mode-btn">LAP REPORT</button>
-  <a href="/live" style="font-size:12px">full telemetry →</a>
-  <a href="/compare" style="font-size:12px">compare →</a>
-  <a href="/setups" style="font-size:12px">setups →</a>
+  <a href="/sessions" style="font-size:12px">sessions</a>
+  <a href="/live" style="font-size:12px">live</a>
+  <a href="/compare" style="font-size:12px">compare</a>
+  <a href="/setups" style="font-size:12px">setups</a>
 </div>
 
 <div class="top">
-  <div><div class="huge flat" id="gap">--</div></div>
-  <div><div class="big"><span id="mph">0</span> <small>mph</small> &nbsp; <span id="gear">N</span></div></div>
-  <div>
-    <div class="next" id="next">--</div>
-    <div class="plan" id="plan"></div>
-  </div>
+  <div class="gear-display"><span id="gear">N</span></div>
+  <div class="current-delta"><span id="live-delta" class="delta flat">--</span></div>
+  <div id="lap-history" class="lap-history"></div>
 </div>
 
 <div class="main">
   <div class="left">
     <canvas id="map"></canvas>
-    <div class="card corner">
-      <div>
-        <div class="label">LAST CORNER · <span id="last-title">—</span></div>
-        <div class="verdict" id="last-verdict">—</div>
-        <div class="tip" id="last-tip"></div>
-        <div class="check" id="last-check"></div>
-      </div>
-      <div>
-        <canvas id="strips" width="520" height="210" style="height:210px;background:#0a0a0a;border:1px solid #222"></canvas>
-      </div>
-    </div>
   </div>
 
   <div id="live-right">
-    <div class="card">
-      <div class="label">WORK ON THIS</div>
-      <div class="lesson" id="lesson">—</div>
-      <canvas id="lesson-bar" width="480" height="66" style="height:66px;margin-top:6px;display:none"></canvas>
+    <div class="card" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+      <div id="corner-list" class="corner-list"></div>
+      <div id="corner-graphs" class="corner-graphs">
+        <div class="corner-graph">
+          <div class="corner-graph-label"><span id="last-corner-label">--</span><span id="last-corner-brake" class="brake-dist"></span></div>
+<canvas id="last-corner-canvas" width="300" height="200"></canvas>
+        </div>
+        <div class="corner-graph">
+          <div class="corner-graph-label"><span id="next-corner-label">--</span><span id="next-corner-brake" class="brake-dist"></span></div>
+<canvas id="next-corner-canvas" width="300" height="200"></canvas>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -137,6 +179,51 @@
   // your rule: purple at −0.10 or better, green for any gain, yellow for any loss up to +0.10, red beyond
   const resultColor = (dTime) => (dTime <= -100 ? "#b57bee" : dTime < 0 ? "#2ecc40" : dTime <= 100 ? "#f1c40f" : "#e74c3c");
 
+  function renderLapHistory() {
+    const el = $("lap-history");
+    if (!el) return;
+    // find live delta
+    let curDelta = null;
+    for (let i = live.samples.length - 1; i >= 0; i--) {
+      if (live.samples[i].dt !== null) { curDelta = live.samples[i].dt; break; }
+    }
+    // update big delta display
+    const deltaEl = $("live-delta");
+    if (deltaEl) {
+      if (curDelta !== null) {
+        const sign = curDelta > 0 ? "+" : "";
+        deltaEl.textContent = `${sign}${(curDelta / 1000).toFixed(3)}`;
+        deltaEl.className = `delta ${curDelta > 0 ? "loss" : "gain"}`;
+      } else {
+        deltaEl.textContent = "--";
+        deltaEl.className = "delta flat";
+      }
+    }
+    // get last 5 completed laps from this session, newest first
+    const validLaps = laps.filter(l => l.lapTimeMs && !l.flags?.includes("incomplete")).slice(-5).reverse();
+    const best = refLap ? refLap.lapTimeMs : (validLaps.length ? Math.min(...validLaps.map(l => l.lapTimeMs)) : null);
+    let html = "";
+    // past laps as rows
+    for (const lap of validLaps) {
+      const delta = best ? lap.lapTimeMs - best : 0;
+      const deltaStr = delta === 0 ? "BEST" : `+${(delta / 1000).toFixed(2)}`;
+      const deltaClass = delta === 0 ? "gain" : "loss";
+      // sector times if available
+      const s1 = lap.sector1Ms, s2 = lap.sector2Ms, s3 = lap.sector3Ms;
+      html += `<div class="lap-row">`;
+      html += `<span class="lap-num">L${lap.lapNum}</span>`;
+      html += `<span class="lap-time">${fmtLap(lap.lapTimeMs)}</span>`;
+      html += `<span class="lap-delta ${deltaClass}">${deltaStr}</span>`;
+      html += `<span class="sectors">`;
+      if (s1) html += `<span class="sector">${(s1/1000).toFixed(1)}</span>`;
+      if (s2) html += `<span class="sector">${(s2/1000).toFixed(1)}</span>`;
+      if (s3) html += `<span class="sector">${(s3/1000).toFixed(1)}</span>`;
+      html += `</span>`;
+      html += `</div>`;
+    }
+    el.innerHTML = html;
+  }
+
   // ---- state ----
   let session = null, lapInfo = null, lastTelemetry = null, laps = [], player = 0, lastPacketAt = 0, socket = null;
   let trackRaw = null, track = null;
@@ -146,6 +233,9 @@
   function brakeDist(ev) { return ev && ev.braking ? { m: ev.apexD - ev.brakeStartD, to: "apex" } : null; }
   let live = fresh(-1), history = {}, lesson = null, lastLap = null;
   let manualReport = false, inReport = false, pinned = null, seqFor = null, nextIdx = -1;
+  let disabledCorners = new Set(); // corners to skip in coaching
+  let focusedCorner = null; // corner focused to show detail view
+  let currentLapD = null; // current lap distance for live car position
   let reportLap = null, lapList = [], reportCache = {}, listMode = "2s", allLaps = []; // a past lap chosen in the report; the laps list and its filter
   let sessionL = null, sessionLapsLoaded = 0; // the session lesson: computed over every recorded lap of this session within 2 s
   // Racing line: the quickest recorded lap that carries car positions is the line reference; its
@@ -197,6 +287,133 @@
     refEvents = refSegs.map((seg) => brakeEvents(refLap.grid, seg));
     refEntries = cornerEntries(trackRaw, refSegs, refLap.track.length);
     seqFor = null;
+    renderCornerList();
+  }
+  function isCornerEnabled(n) { return !disabledCorners.has(n); }
+  let lastCompletedCorner = null;
+  function renderCornerList() {
+    const container = $("corner-list");
+    if (!refSegs.length) { container.innerHTML = ""; $("corner-detail").style.display = "none"; return; }
+    const nextN = refCorners[nextIdx] ? refCorners[nextIdx].seg.n : null;
+    container.innerHTML = refSegs.map((seg, i) => {
+      const ev = refEvents[i];
+      const isDisabled = disabledCorners.has(seg.n);
+      const isFocused = focusedCorner === seg.n;
+      const isNext = seg.n === nextN && !inReport && isCornerEnabled(seg.n);
+      const isLast = seg.n === lastCompletedCorner && !inReport;
+      const lastAttempt = (history[seg.n] || []).slice(-1)[0];
+      const delta = lastAttempt ? lastAttempt.dTime : null;
+      const deltaStr = delta !== null ? `${delta > 0 ? "+" : ""}${(delta / 1000).toFixed(3)}` : "";
+      const deltaColor = delta !== null ? (delta > 0 ? "#e74c3c" : "#2ecc40") : "#666";
+      // calculate zone percentages from reference events
+      let zones = "";
+      if (ev && ev.braking) {
+        const total = seg.d1 - seg.d0;
+        const brakeLen = ev.apexD - ev.brakeStartD;
+        const trailLen = ev.overlapM || 0;
+        const gasLen = ev.pickupD !== null ? (seg.d1 - ev.pickupD) : (seg.d1 - ev.apexD);
+        const brakePct = Math.round((brakeLen / total) * 100);
+        const trailPct = Math.round((trailLen / total) * 100);
+        const gasPct = Math.round((gasLen / total) * 100);
+        zones = `<span class="zones"><span class="zone-bar zone-brake" style="width:${brakePct}%"></span><span class="zone-bar zone-trail" style="width:${trailPct}%"></span><span class="zone-bar zone-gas" style="width:${gasPct}%"></span></span>`;
+      } else {
+        zones = `<span class="zones"><span class="zone-bar zone-gas" style="width:100%"></span></span>`;
+      }
+      return `<div class="corner-item${isDisabled ? " disabled" : ""}${isFocused ? " focused" : ""}${isNext ? " next" : ""}${isLast ? " last" : ""}" data-n="${seg.n}">
+        <span class="t">T${seg.n}</span>
+        <span class="delta" style="color:${deltaColor}">${deltaStr}</span>
+        <span class="speed">${ev ? Math.round(ev.minSpeed * MPH) : ""}</span>
+        ${zones}
+        <span class="x" data-toggle="${seg.n}">${isDisabled ? "+" : "×"}</span>
+      </div>`;
+    }).join("");
+    container.querySelectorAll(".corner-item").forEach((el) => {
+      el.onclick = (e) => {
+        // handle toggle button click
+        if (e.target.classList.contains("x")) {
+          const n = parseInt(e.target.dataset.toggle);
+          if (disabledCorners.has(n)) disabledCorners.delete(n);
+          else disabledCorners.add(n);
+          renderCornerList();
+          return;
+        }
+        const n = parseInt(el.dataset.n);
+        focusedCorner = focusedCorner === n ? null : n;
+        renderCornerList();
+      };
+    });
+  }
+  function updateCornerListHighlight() {
+    const nextN = refCorners[nextIdx] ? refCorners[nextIdx].seg.n : null;
+    $("corner-list").querySelectorAll(".corner-item").forEach((el) => {
+      const n = parseInt(el.dataset.n);
+      el.classList.toggle("next", n === nextN && !inReport && isCornerEnabled(n));
+      el.classList.toggle("last", n === lastCompletedCorner && !inReport);
+    });
+  }
+  function cornerStats(ev, ref) {
+    if (!ev && !ref) return "";
+    const e = ev || ref;
+    const stats = [];
+    if (e.braking) {
+      const brakeM = Math.round(e.apexD - e.brakeStartD);
+      stats.push(`<span class="stat"><span class="stat-label">BRAKE</span><span class="stat-value brake">${brakeM}m</span></span>`);
+      if (e.overlapM >= 5) stats.push(`<span class="stat"><span class="stat-label">TRAIL</span><span class="stat-value trail">${Math.round(e.overlapM)}m</span></span>`);
+    }
+    stats.push(`<span class="stat"><span class="stat-label">APEX</span><span class="stat-value apex">${Math.round(e.minSpeed * MPH)}mph</span></span>`);
+    if (e.apexToPickup !== null) {
+      const gasLabel = e.apexToPickup <= 3 ? "at apex" : `+${Math.round(e.apexToPickup)}m`;
+      stats.push(`<span class="stat"><span class="stat-label">GAS</span><span class="stat-value gas">${gasLabel}</span></span>`);
+    }
+    return stats.join("");
+  }
+  function renderCornerNow() {
+    const graphs = $("corner-graphs");
+    if (inReport || !refSegs.length) { graphs.style.display = "none"; return; }
+    graphs.style.display = "grid";
+    const nextN = refCorners[nextIdx] ? refCorners[nextIdx].seg.n : null;
+    // Left: previous corner (one before next), skip disabled corners
+    const lastLabel = $("last-corner-label");
+    const lastCv = $("last-corner-canvas");
+    // Find previous enabled corner by going backwards from next
+    let prevIdx = -1, prevSeg = null;
+    if (nextIdx >= 0) {
+      for (let i = 1; i <= refSegs.length; i++) {
+        const idx = (nextIdx - i + refSegs.length) % refSegs.length;
+        const seg = refSegs[idx];
+        const cornerNum = seg ? seg.n : null;
+        if (cornerNum !== null && !disabledCorners.has(cornerNum)) { prevIdx = idx; prevSeg = seg; break; }
+      }
+    }
+    if (prevSeg) {
+      const prevN = prevSeg.n;
+      const lastAttempt = (history[prevN] || []).slice(-1)[0];
+      const delta = lastAttempt ? lastAttempt.dTime : null;
+      const deltaStr = delta !== null ? `${delta > 0 ? "+" : ""}${(delta / 1000).toFixed(3)}` : "";
+      const deltaColor = delta !== null ? (delta > 0 ? "#e74c3c" : "#2ecc40") : "#666";
+      lastLabel.innerHTML = `<span class="t">T${prevN}</span><span class="delta" style="color:${deltaColor}">${deltaStr}</span>`;
+      const r = lastCv.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) { lastCv.width = Math.round(r.width); lastCv.height = Math.round(r.height); }
+      drawCornerMap(lastCv, prevSeg, refEvents[prevIdx], lastAttempt ? lastAttempt.ev : null);
+    } else {
+      lastLabel.innerHTML = `<span class="t">--</span>`;
+      lastCv.getContext("2d").clearRect(0, 0, lastCv.width, lastCv.height);
+    }
+    // Right: next corner
+    const nextLabel = $("next-corner-label");
+    const nextCv = $("next-corner-canvas");
+    if (nextN) {
+      nextLabel.innerHTML = `<span class="t next">T${nextN}</span> <span style="color:#888">next</span>`;
+      const idx = refSegs.findIndex((s) => s.n === nextN);
+      if (idx >= 0) {
+        const r = nextCv.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) { nextCv.width = Math.round(r.width); nextCv.height = Math.round(r.height); }
+        drawCornerMap(nextCv, refSegs[idx], refEvents[idx], null, currentLapD);
+      }
+    } else {
+      nextLabel.innerHTML = `<span class="t">--</span>`;
+      nextCv.getContext("2d").clearRect(0, 0, nextCv.width, nextCv.height);
+    }
   }
 
   // ---- map: fitted with one uniform scale, canvas follows its box ----
@@ -250,69 +467,25 @@
         ctx.strokeStyle = Math.abs(dd) < 3 ? "#666" : dd > 0 ? "#e74c3c" : "#2ecc40";
         ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
       }
-      // brake pins: where your best lap starts braking for each corner. The next one pulses.
-      const pulse = 1 + 0.25 * Math.sin(performance.now() / 150);
-      refCorners.forEach((rc, i) => {
-        if (!rc.m || rc.m.brakeD === null) return;
-        const [x, y] = pointAt(rc.m.brakeD / L), isNext = i === nextIdx && !inReport, r = (isNext ? 12 * pulse : 7) * k;
-        ctx.fillStyle = isNext ? "#ff3b30" : "#8a2a24";
-        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - r, y - r * 1.6); ctx.arc(x, y - r * 1.6, r, Math.PI, 0); ctx.lineTo(x, y); ctx.fill();
-        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x, y - r * 1.6, r * 0.4, 0, Math.PI * 2); ctx.fill();
-        const bd = brakeDist(refEvents[i]), metres = bd ? Math.round(bd.m) + " m" : "";
-        ctx.font = `bold ${Math.round((isNext ? 18 : 13) * k)}px monospace`; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-        ctx.lineWidth = 4 * k; ctx.strokeStyle = "#0a0a0a"; ctx.strokeText(metres, x, y - r * 2.8); ctx.fillStyle = isNext ? "#ff3b30" : "#c0392b"; ctx.fillText(metres, x, y - r * 2.8);
-        ctx.textBaseline = "middle";
-      });
-      // corner entry (small grey tick), trail (yellow along the road), apex (white tick + speed), gas (green dot + metres)
-      refEvents.forEach((ev, i) => {
-        if (!ev) return;
-        const isNext = i === nextIdx && !inReport;
-        if (ev.braking && ev.overlapM > 3) {
-          ctx.strokeStyle = isNext ? "#f1c40f" : "#8a7a1a"; ctx.lineWidth = 5 * k; ctx.beginPath();
-          for (let d = ev.apexD - ev.overlapM, first = true; d <= ev.apexD; d += 4, first = false) { const [px, py] = pointAt(d / L); first ? ctx.moveTo(px, py) : ctx.lineTo(px, py); }
-          ctx.stroke();
-        }
-        const [ax, ay] = pointAt(ev.apexD / L), [bx, by] = pointAt((ev.apexD + 6) / L);
-        const nx = -(by - ay), ny = bx - ax, nl = Math.hypot(nx, ny) || 1, t = 9 * k;
-        ctx.strokeStyle = isNext ? "#fff" : "#999"; ctx.lineWidth = 3 * k;
-        ctx.beginPath(); ctx.moveTo(ax - nx / nl * t, ay - ny / nl * t); ctx.lineTo(ax + nx / nl * t, ay + ny / nl * t); ctx.stroke();
-        // apex speed, offset to the outside of the apex bar
-        const sp = Math.round(ev.minSpeed * MPH) + " mph";
-        ctx.font = `bold ${Math.round((isNext ? 16 : 12) * k)}px monospace`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.lineWidth = 4 * k; ctx.strokeStyle = "#0a0a0a"; ctx.strokeText(sp, ax + nx / nl * t * 3.2, ay + ny / nl * t * 3.2);
-        ctx.fillStyle = isNext ? "#fff" : "#aaa"; ctx.fillText(sp, ax + nx / nl * t * 3.2, ay + ny / nl * t * 3.2);
-        if (ev.pickupD !== null && ev.apexToPickup > 3) {
-          const [gx, gy] = pointAt(ev.pickupD / L), [hx, hy] = pointAt((ev.pickupD + 6) / L);
-          const gnx = -(hy - gy), gny = hx - gx, gl = Math.hypot(gnx, gny) || 1;
-          ctx.fillStyle = isNext ? "#2ecc40" : "#1f7a2e"; ctx.beginPath(); ctx.arc(gx, gy, (isNext ? 8 : 6) * k, 0, Math.PI * 2); ctx.fill();
-          const gs = "+" + Math.round(ev.apexToPickup) + " m";
-          ctx.font = `bold ${Math.round((isNext ? 14 : 11) * k)}px monospace`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-          ctx.lineWidth = 4 * k; ctx.strokeStyle = "#0a0a0a"; ctx.strokeText(gs, gx - gnx / gl * 22 * k, gy - gny / gl * 22 * k);
-          ctx.fillStyle = isNext ? "#2ecc40" : "#4a8a55"; ctx.fillText(gs, gx - gnx / gl * 22 * k, gy - gny / gl * 22 * k);
-        }
-      });
-    }
-    // racing lines: best line lap in grey, the shown lap in white
-    if (worldFit) {
-      const draw = (xs, zs, color, width) => {
-        ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath(); let pen = false;
-        for (let i = 0; i < xs.length; i++) { if (xs[i] === 0 && zs[i] === 0) { pen = false; continue; } const [px, py] = worldToMap(xs[i], zs[i]); pen ? ctx.lineTo(px, py) : ctx.moveTo(px, py); pen = true; }
-        ctx.stroke();
-      };
-      if (lineRef) draw(lineRef.grid.x, lineRef.grid.z, "#8a8a8a", 1.5 * k);
-      const s = shown.samples; if (s.length > 1) draw(s.map((q) => q.x), s.map((q) => q.z), "#fff", 1.8 * k);
     }
     const sf = track.pts[0]; ctx.fillStyle = "#eee"; ctx.fillRect(sf[0] - 2 * k, sf[1] - 9 * k, 4 * k, 18 * k);
-    // corner labels: grey until done, then the delta under the number
+    // corner labels: small, next corner highlighted with glow
+    const nextN = !inReport && refCorners[nextIdx] ? refCorners[nextIdx].seg.n : null;
     for (const c of track.corners) {
-      const r = shown.log.find((e) => e.n === c.n), col = !r ? "#666" : resultColor(r.dTime), dy = -20 * k;
-      ctx.font = `bold ${Math.round(28 * k)}px monospace`; ctx.lineWidth = 5 * k; ctx.strokeStyle = "#0a0a0a";
-      ctx.strokeText("T" + c.n, c.p[0], c.p[1] + dy); ctx.fillStyle = pinned === c.n ? "#fff" : col; ctx.fillText("T" + c.n, c.p[0], c.p[1] + dy);
-      if (r) { const d = (r.dTime > 0 ? "+" : "") + (r.dTime / 1000).toFixed(2); ctx.font = `bold ${Math.round(24 * k)}px monospace`; ctx.strokeText(d, c.p[0], c.p[1] + dy + 28 * k); ctx.fillText(d, c.p[0], c.p[1] + dy + 28 * k); }
+      const r = shown.log.find((e) => e.n === c.n), col = !r ? "#555" : resultColor(r.dTime);
+      const isNext = c.n === nextN;
+      if (isNext) {
+        const pulse = 1 + 0.15 * Math.sin(performance.now() / 200);
+        ctx.shadowColor = "#f39c12"; ctx.shadowBlur = 12 * k * pulse;
+      }
+      ctx.font = `bold ${Math.round((isNext ? 14 : 11) * k)}px monospace`; ctx.lineWidth = 3 * k; ctx.strokeStyle = "#0a0a0a";
+      ctx.strokeText("T" + c.n, c.p[0], c.p[1]); ctx.fillStyle = isNext ? "#f39c12" : (pinned === c.n ? "#fff" : col); ctx.fillText("T" + c.n, c.p[0], c.p[1]);
+      ctx.shadowBlur = 0;
+      if (r) { const d = (r.dTime > 0 ? "+" : "") + (r.dTime / 1000).toFixed(2); ctx.font = `bold ${Math.round(10 * k)}px monospace`; ctx.strokeText(d, c.p[0], c.p[1] + 12 * k); ctx.fillStyle = col; ctx.fillText(d, c.p[0], c.p[1] + 12 * k); }
     }
     if (!inReport && lapInfo && L) {
       const me = lapInfo.cars[player];
-      if (me) { const [x, y] = pointAt(me.lapDistance / L); ctx.fillStyle = "#2ecc40"; ctx.beginPath(); ctx.arc(x, y, 9 * k, 0, Math.PI * 2); ctx.fill(); }
+      if (me) { const [x, y] = pointAt(me.lapDistance / L); ctx.fillStyle = "#3498db"; ctx.beginPath(); ctx.arc(x, y, 9 * k, 0, Math.PI * 2); ctx.fill(); }
     }
   }
   canvas.onclick = (e) => {
@@ -327,7 +500,7 @@
   // A piece of the map for one corner. The road in grey; your best lap painted on the left side of
   // the centreline, your attempt on the right: red braking, yellow braking while turning, green gas.
   // Pins at brake points, a white bar at the apex, a dot where the gas came on.
-  function drawCornerMap(cv, seg, ref, ev) {
+  function drawCornerMap(cv, seg, ref, ev, liveD) {
     const c = cv.getContext("2d"), W = cv.width, H = cv.height;
     c.clearRect(0, 0, W, H);
     if (!geo || !refLap) return;
@@ -345,6 +518,13 @@
       if (dA === null || dB === null || dB <= dA) return;
       c.strokeStyle = color; c.lineWidth = width; c.lineCap = "round"; c.lineJoin = "round"; c.beginPath();
       for (let d = dA, first = true; ; d += 2, first = false) { if (d > dB) d = dB; const [x, y] = P(d), [nx, ny] = N(d); const px = x + nx * off * side, py = y + ny * off * side; first ? c.moveTo(px, py) : c.lineTo(px, py); if (d >= dB) break; }
+      c.stroke();
+    };
+    // draw colored zones directly on centerline (for preview mode)
+    const pathCenter = (dA, dB, color, width) => {
+      if (dA === null || dB === null || dB <= dA) return;
+      c.strokeStyle = color; c.lineWidth = width; c.lineCap = "round"; c.lineJoin = "round"; c.beginPath();
+      for (let d = dA, first = true; ; d += 2, first = false) { if (d > dB) d = dB; const [x, y] = P(d); first ? c.moveTo(x, y) : c.lineTo(x, y); if (d >= dB) break; }
       c.stroke();
     };
     // road
@@ -375,17 +555,35 @@
         prev = [px, py]; pen = true;
       }
     };
-    const attemptTr = attempt && attempt.tr && attempt.tr.x ? attempt.tr : null;
-    const haveLines = worldFit && lineRef && attemptTr && attemptTr.x.some((v) => v !== 0);
-    if (haveLines) {
-      c.lineCap = "round";
-      drawLine(lineRef.grid, () => "#777", 4);
-      const colorAt = (k) => { const b = attemptTr.brake[k], st = Math.abs(attemptTr.steer[k]), th = attemptTr.throttle[k]; return b > 0.05 && st > 0.1 ? "#f1c40f" : b > 0.05 ? "#e74c3c" : th > 0.9 ? "#2ecc40" : "#ddd"; };
-      drawLine(attemptTr, colorAt, 5);
-    } else {
-      lane(ref, -1, true);
-      lane(ev, 1, false);
-    }
+    // Always draw colored zones on centerline for these small graphs
+    // (the detailed racing line drawing doesn't show well at this scale)
+    const e = ev || ref; // use attempt data if available, else reference
+      const markCenter = (d, color, r) => { if (d === null) return; const [x, y] = P(d); c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fillStyle = color; c.fill(); };
+      if (e && e.braking) {
+        // braking corner: grey approach, red brake, yellow trail, green gas
+        pathCenter(m0, e.brakeStartD, "#555", 12);
+        pathCenter(e.brakeStartD, e.apexD, "#e74c3c", 12);
+        if (e.overlapM > 2) pathCenter(e.apexD - e.overlapM, e.apexD, "#f1c40f", 12);
+        if (e.pickupD !== null) pathCenter(e.pickupD, m1, "#2ecc40", 12);
+        else pathCenter(e.apexD, m1, "#2ecc40", 12);
+        // markers
+        markCenter(e.brakeStartD, "#ff3b30", 10);
+        if (e.pickupD !== null && e.apexToPickup > 3) markCenter(e.pickupD, "#2ecc40", 9);
+        // apex marker
+        const [ax, ay] = P(e.apexD);
+        c.fillStyle = "#fff"; c.beginPath(); c.arc(ax, ay, 8, 0, Math.PI * 2); c.fill();
+        // brake distance label near brake point
+        const brakeM = Math.round(e.apexD - e.brakeStartD);
+        const [bx, by] = P(e.brakeStartD);
+        c.font = "bold 18px monospace"; c.textAlign = "center"; c.textBaseline = "middle";
+        c.fillStyle = "#e74c3c"; c.fillText(brakeM + "m", bx, by - 18);
+      } else {
+        // flat corner or no data: draw green line with apex marker
+        pathCenter(m0, m1, "#2ecc40", 12);
+        const apexD = e ? e.apexD : seg.apexD;
+        const [ax, ay] = P(apexD);
+        c.fillStyle = "#fff"; c.beginPath(); c.arc(ax, ay, 10, 0, Math.PI * 2); c.fill();
+      }
     // which corner is which: big label at this apex, smaller at any other apex in view; a grey tick where the corner starts
     const idxHere = refSegs.indexOf(seg);
     refSegs.forEach((sg, j) => {
@@ -398,6 +596,28 @@
     });
     // driving direction: arrow at the start of the piece
     { const [x, y] = P(m0 + 8), [x2, y2] = P(m0 + 30); const ang = Math.atan2(y2 - y, x2 - x); c.fillStyle = "#aaa"; c.beginPath(); c.moveTo(x2 + Math.cos(ang) * 10, y2 + Math.sin(ang) * 10); c.lineTo(x2 + Math.cos(ang + 2.5) * 10, y2 + Math.sin(ang + 2.5) * 10); c.lineTo(x2 + Math.cos(ang - 2.5) * 10, y2 + Math.sin(ang - 2.5) * 10); c.fill(); }
+    // live car position - show even when approaching (within 200m before corner start)
+    if (liveD !== null && liveD !== undefined) {
+      const L = refLap.track.length;
+      // handle wrap-around: distance to corner start
+      let distToCorner = seg.d0 - liveD;
+      if (distToCorner < -L/2) distToCorner += L;
+      if (distToCorner > L/2) distToCorner -= L;
+      // show if within view range OR approaching (up to 200m before)
+      const inView = liveD >= m0 && liveD <= m1;
+      const approaching = distToCorner > 0 && distToCorner < 200;
+      if (inView) {
+        const [cx, cy] = P(liveD);
+        c.beginPath(); c.arc(cx, cy, 12, 0, Math.PI * 2); c.fillStyle = "#3498db"; c.fill();
+        c.beginPath(); c.arc(cx, cy, 12, 0, Math.PI * 2); c.strokeStyle = "#fff"; c.lineWidth = 2; c.stroke();
+      } else if (approaching) {
+        // draw at edge of visible area with arrow pointing in
+        const [cx, cy] = P(m0);
+        c.beginPath(); c.arc(cx, cy, 10, 0, Math.PI * 2); c.fillStyle = "#3498db"; c.globalAlpha = 0.6; c.fill(); c.globalAlpha = 1;
+        c.font = "bold 14px monospace"; c.fillStyle = "#3498db"; c.textAlign = "center";
+        c.fillText(Math.round(distToCorner) + "m", cx, cy - 18);
+      }
+    }
   }
   function bars(cv, items) {
     const c = cv.getContext("2d"), W = cv.width, H = cv.height;
@@ -429,12 +649,12 @@
     return tr;
   }
   function onLap(p) {
-    const gapEl = $("gap");
     if (!refLap || !refSegs.length) return;
     const d = p.lapDistance, last = live.samples[live.samples.length - 1];
+    currentLapD = d; // track for live car position
     if (p.lapNum !== live.lapNum || (last && (d < last.d - 50 || p.currentLapMs < last.t - 200))) {
       if (live.armed && live.attempts.length >= Math.max(3, refSegs.length - 2)) finishLap();
-      live = fresh(p.lapNum); gapEl.textContent = "--"; gapEl.className = "huge flat";
+      live = fresh(p.lapNum);
     }
     if (d < 0) { live.beforeLine = true; renderNext(d); return; }
     if (!live.armed && (d < 60 || live.beforeLine)) live.armed = true;
@@ -444,8 +664,6 @@
       const tr0 = at(refLap.grid, "t", d), tl = lastTelemetry || { speed: 0, throttle: 0, brake: 0, steer: 0 };
       live.samples.push({ d, t: p.currentLapMs, dt: tr0 === null ? null : p.currentLapMs - tr0, speed: tl.speed, throttle: tl.throttle, brake: tl.brake, steer: tl.steer, x: lastPos ? lastPos.x : 0, z: lastPos ? lastPos.z : 0 });
     }
-    const tr = at(refLap.grid, "t", d);
-    if (tr !== null) { const dt = p.currentLapMs - tr; gapEl.textContent = (dt > 0 ? "+" : "") + (dt / 1000).toFixed(2); gapEl.className = "huge " + (dt > 0 ? "loss" : "gain"); }
     const i = refSegs.findIndex((s) => d >= s.d0 && d <= s.d1);
     if (i !== live.cur) { if (live.cur !== null && live.cur >= 0) finishCorner(live.cur, false); live.cur = i; live.exited = false; live.gasM = 0; }
     // exit = past the apex and on full throttle for 15 m: judge now, so the card is up before the next corner
@@ -483,8 +701,10 @@
     live.log.push({ n: seg.n, dTime });
     (history[seg.n] ??= []).push(attempt);
     live.attempts.push(attempt);
+    lastCompletedCorner = seg.n;
+    renderCornerList();
+    renderCornerNow();
     if (lesson && lesson.n === seg.n) renderLesson(attempt);
-    if (pinned === null || pinned === seg.n) showCorner(seg.n);
   }
   function finishLap() {
     lastLap = { lapNum: live.lapNum, samples: live.samples, log: live.log, attempts: live.attempts, lapTimeMs: null };
@@ -500,25 +720,21 @@
   // ---- panels ----
   function renderNext(d) {
     const L = refLap.track.length;
-    const ahead = refCorners.filter((c) => c.seg.apexD > d), idx = ahead.length ? refCorners.indexOf(ahead[0]) : 0;
-    const nx = refCorners[idx], ev = refEvents[idx], m = nx.m;
+    // filter to enabled corners only
+    const enabled = refCorners.filter((c) => isCornerEnabled(c.seg.n));
+    if (!enabled.length) { nextIdx = -1; return; }
+    const ahead = enabled.filter((c) => c.seg.apexD > d);
+    const nx = ahead.length ? ahead[0] : enabled[0];
+    const idx = refCorners.indexOf(nx);
+    const ev = refEvents[idx], m = nx.m;
     if (d < 0) d = ((d % L) + L) % L;
     const toApex = ((nx.seg.apexD - d) + L) % L;
     const toBrake = m && m.brakeD !== null ? ((m.brakeD - d) + L) % L : null;
+    const prevIdx = nextIdx;
     nextIdx = idx;
-    const line = toBrake === null ? `<span class="flat">FLAT</span>` : toBrake < toApex ? `<span class="brake">${Math.round(toBrake)} m</span>` : `<span class="zone">BRAKING</span>`;
-    $("next").innerHTML = `<b>T${nx.seg.n}</b> · ${line}`;
-    // the whole corner, as your best lap does it: brake, how long to trail, apex speed, gas
-    if (seqFor !== nx.seg.n) {
-      seqFor = nx.seg.n;
-      const bd = brakeDist(ev);
-      $("plan").innerHTML = ev && ev.braking
-        ? `<span class="r">BRAKE <b>${Math.round(bd.m)} m</b> before apex</span> → ` +
-          (ev.overlapM >= 10 ? `<span class="y">trail <b>${Math.round(ev.overlapM)} m</b></span> → ` : "") +
-          `<span class="w">APEX <b>${Math.round(ev.minSpeed * MPH)} mph</b></span> → ` +
-          `<span class="g">GAS <b>${ev.apexToPickup === null || ev.apexToPickup <= 3 ? "at apex" : "+" + Math.round(ev.apexToPickup) + " m"}</b></span>`
-        : `<span class="g">FLAT</span> · <span class="w">APEX <b>${m ? Math.round(m.minSpeed * MPH) : "--"} mph</b></span>`;
-    }
+    if (prevIdx !== nextIdx) updateCornerListHighlight();
+    renderCornerNow(); // always redraw to update live car position
+    renderLapHistory(); // update live delta
   }
   // Four ticks: brake point, brake while turning, apex speed, gas. Each with you vs best.
   let checklistLine = null;
@@ -539,44 +755,33 @@
     const ln = checklistLine; if (ln && ln.cur && ln.ref && ln.cur.apex !== null && ln.ref.apex !== null) { const d = ln.ref.apex - ln.cur.apex; out.push(row(Math.abs(d) <= 1.5, "LINE", Math.abs(d) <= 0.5 ? "on it" : `${Math.abs(d).toFixed(1)} m ${d > 0 ? "wide" : "tight"}`, "apex")); }
     return out.join("");
   }
-  // the last-corner card (live) or the picked corner in the report
+  // corner display - now just updates the corner list highlight
   function showCorner(n) {
-    const idx = refSegs.findIndex((s) => s.n === n); if (idx < 0) return;
-    const src = inReport && shownLap() ? shownLap().attempts : null;
-    const attempt = (src ? src.filter((a) => a.n === n) : (history[n] || [])).slice(-1)[0] || null;
-    const fd = attempt && attempt.finding;
-    const [tEl, vEl, tipEl, chkEl, cv] = ["last-title", "last-verdict", "last-tip", "last-check", "strips"];
-    $(tEl).textContent = `T${n}` + (attempt ? ` · ${attempt.dTime > 0 ? "+" : ""}${(attempt.dTime / 1000).toFixed(2)} s` : "");
-    $(vEl).innerHTML = fd ? `<span style="color:${fd.code === "good" ? "#2ecc40" : "#f1c40f"}">${fd.title}</span>` + (attempt.prog ? ` <span class="${attempt.prog.verdict}" style="font-size:20px">${attempt.prog.verdict.toUpperCase()}</span>` : "") : (attempt ? `<span style="color:#2ecc40">FLAT OUT</span>` : "—");
-    $(tipEl).textContent = fd ? fd.next : "";
-    checklistLine = attempt ? { cur: attempt.line, ref: lineRefM[idx] } : null;
-    $(chkEl).innerHTML = attempt ? checklist(attempt.ev, refEvents[idx], idx) : "";
-    const c = $(cv), r = c.getBoundingClientRect(); if (r.width > 0) { c.width = Math.round(r.width); c.height = 210; }
-    drawCornerMap(c, refSegs[idx], refEvents[idx], attempt ? attempt.ev : null);
+    // corner list handles display now
   }
   let lastLessonAttempt = null;
   function renderLesson(attempt) {
     if (attempt) lastLessonAttempt = attempt;
     const a = lastLessonAttempt;
-    for (const [elId, cvId] of [["lesson", "lesson-bar"], ["lesson-r", "lesson-bar-r"]]) {
-      const el = $(elId), cv = $(cvId);
-      if (!lesson) { el.textContent = "—"; cv.style.display = "none"; continue; }
-      if (lesson.n === null) { el.innerHTML = `<span class="better">nothing stands out</span>`; cv.style.display = "none"; continue; }
-      let verdict = "", now = null;
-      if (a && a.n === lesson.n) {
-        now = metricValue(lesson.finding.code, a.ev);
-        const p2 = progress({ ...lesson.finding, metric: { ...lesson.finding.metric, cur: now } }, lesson.base);
-        if (p2) verdict = ` <span class="${p2.verdict}">${p2.verdict.toUpperCase()}</span>`;
-      }
-      const P = sessionL && sessionL.primary && lesson.session ? sessionL.primary : null;
-      const stats = P ? `<span class="sub">${Math.round(P.share * 100)}% of ${P.laps} laps · typical +${(P.median / 1000).toFixed(2)} s</span><br>` : "";
-      const inc = sessionL && sessionL.inconsistent && sessionL.inconsistent.n !== lesson.n
-        ? `<br><span style="font-size:15px"><span class="t" style="color:#e67e22">T${sessionL.inconsistent.n} · INCONSISTENT</span> <span class="sub">${(sessionL.inconsistent.p10 / 1000).toFixed(2)} to +${(sessionL.inconsistent.p90 / 1000).toFixed(2)} s · same brake point every lap</span></span>`
-        : sessionL && sessionL.inconsistent && sessionL.inconsistent.n === lesson.n ? `<br><span class="sub" style="color:#e67e22">also swings ${(sessionL.inconsistent.p10 / 1000).toFixed(2)} to +${(sessionL.inconsistent.p90 / 1000).toFixed(2)} s lap to lap</span>` : "";
-      el.innerHTML = `<span class="t">T${lesson.n} · ${lesson.finding.title}</span>${verdict}<br>${stats}<span style="font-size:17px;color:#ccc">${lesson.finding.next}</span>${inc}`;
-      cv.style.display = "block";
-      bars(cv, [[lesson.session ? "typical" : "was", lesson.base, "#7a6a2a"], ["now", now ?? lesson.base, "#f1c40f"], ["best", lesson.finding.metric.ref, "#888"]]);
+    // only render in report panel (lesson-r)
+    const el = $("lesson-r"), cv = $("lesson-bar-r");
+    if (!el) return;
+    if (!lesson) { el.textContent = "—"; cv.style.display = "none"; return; }
+    if (lesson.n === null) { el.innerHTML = `<span class="better">nothing stands out</span>`; cv.style.display = "none"; return; }
+    let verdict = "", now = null;
+    if (a && a.n === lesson.n) {
+      now = metricValue(lesson.finding.code, a.ev);
+      const p2 = progress({ ...lesson.finding, metric: { ...lesson.finding.metric, cur: now } }, lesson.base);
+      if (p2) verdict = ` <span class="${p2.verdict}">${p2.verdict.toUpperCase()}</span>`;
     }
+    const P = sessionL && sessionL.primary && lesson.session ? sessionL.primary : null;
+    const stats = P ? `<span class="sub">${Math.round(P.share * 100)}% of ${P.laps} laps · typical +${(P.median / 1000).toFixed(2)} s</span><br>` : "";
+    const inc = sessionL && sessionL.inconsistent && sessionL.inconsistent.n !== lesson.n
+      ? `<br><span style="font-size:15px"><span class="t" style="color:#e67e22">T${sessionL.inconsistent.n} · INCONSISTENT</span> <span class="sub">${(sessionL.inconsistent.p10 / 1000).toFixed(2)} to +${(sessionL.inconsistent.p90 / 1000).toFixed(2)} s · same brake point every lap</span></span>`
+      : sessionL && sessionL.inconsistent && sessionL.inconsistent.n === lesson.n ? `<br><span class="sub" style="color:#e67e22">also swings ${(sessionL.inconsistent.p10 / 1000).toFixed(2)} to +${(sessionL.inconsistent.p90 / 1000).toFixed(2)} s lap to lap</span>` : "";
+    el.innerHTML = `<span class="t">T${lesson.n} · ${lesson.finding.title}</span>${verdict}<br>${stats}<span style="font-size:17px;color:#ccc">${lesson.finding.next}</span>${inc}`;
+    cv.style.display = "block";
+    bars(cv, [[lesson.session ? "typical" : "was", lesson.base, "#7a6a2a"], ["now", now ?? lesson.base, "#f1c40f"], ["best", lesson.finding.metric.ref, "#888"]]);
   }
   // A recorded lap turned into the same shape as a live lap, judged corner by corner against the reference.
   function lapFromRecord(rec) {
@@ -719,30 +924,31 @@
   const statusEl = $("status");
   function setStatus(cls, text) { statusEl.className = cls; $("status-text").textContent = text; }
   function connect() {
+    console.log("[WS] connecting to", `ws://${location.host}`);
     socket = new WebSocket(`ws://${location.host}`);
-    socket.onopen = () => setStatus("waiting", "WAITING");
+    socket.onopen = () => { console.log("[WS] connected"); setStatus("waiting", "WAITING"); };
     socket.onmessage = (ev) => {
       lastPacketAt = Date.now(); setStatus("live", "LIVE");
       const msg = JSON.parse(ev.data);
       switch (msg.type) {
-        case "telemetry": lastTelemetry = msg.data; $("mph").textContent = Math.round(msg.data.speed * MPH); $("gear").textContent = msg.data.gear === 0 ? "N" : msg.data.gear === -1 ? "R" : msg.data.gear;
+        case "telemetry": lastTelemetry = msg.data; $("gear").textContent = msg.data.gear === 0 ? "N" : msg.data.gear === -1 ? "R" : msg.data.gear;
           if (inReport && msg.data.speed > 10) { manualReport = false; reportLap = null; setMode(false); } // driving again: live view, always
           break;
         case "motion": player = msg.data.player; { const c = msg.data.cars && msg.data.cars[player]; if (c) lastPos = { x: c.x, z: c.z }; } break;
         case "lap": lapInfo = msg.data; if (session && session.offline) { session = null; } if (session) onLap(msg.data.player); break;
         case "session": { const changed = !session || session.offline || session.trackId !== msg.data.trackId; const uid = session && session.uid; session = msg.data; session.uid = uid; $("track-name").textContent = `${msg.data.trackName} · ${msg.data.trackLength} m`; if (changed) { loadTrack(msg.data.trackId); loadReference(msg.data.trackId); } break; }
-        case "laps": laps = msg.data; if (session && laps[0] && laps[0].file) session.uid = laps[0].file.split("/").slice(-2, -1)[0]; if (session) { loadReference(session.trackId).then(loadLapList); } break;
-        case "lapCompleted": laps.push(msg.data); if (lastLap && lastLap.lapNum === msg.data.lapNum) { lastLap.lapTimeMs = msg.data.lapTimeMs; if (inReport) renderReport(); } if (session) { loadReference(session.trackId).then(loadLapList); } break;
+        case "laps": laps = msg.data; if (session && laps[0] && laps[0].file) session.uid = laps[0].file.split("/").slice(-2, -1)[0]; if (session) { loadReference(session.trackId).then(loadLapList); } renderLapHistory(); break;
+        case "lapCompleted": laps.push(msg.data); if (lastLap && lastLap.lapNum === msg.data.lapNum) { lastLap.lapTimeMs = msg.data.lapTimeMs; if (inReport) renderReport(); } if (session) { loadReference(session.trackId).then(loadLapList); } renderLapHistory(); break;
       }
     };
     socket.onclose = () => { setStatus("disconnected", "DISCONNECTED"); setTimeout(connect, 1000); };
     socket.onerror = () => socket.close();
   }
-  // Mode: the game stops sending packets when paused. No packets for 1.5 s + a finished lap = report.
+  // Mode: the game stops sending packets when paused. No packets for 1.5 s = paused status.
   setInterval(() => {
     const stale = socket && socket.readyState === WebSocket.OPEN && Date.now() - lastPacketAt > 1500;
-    if (stale) { if (!inReport) setStatus("waiting", "PAUSED"); lapInfo = null; if (!shownLap() && !reviewing) reviewFromDisk(); }
-    if (!manualReport) setMode(stale && !!shownLap());
+    if (stale) { if (!inReport) setStatus("waiting", "PAUSED"); lapInfo = null; }
+    // don't auto-switch to report mode on pause - keep live view
   }, 250);
   connect();
   // Packets not flowing (game off, paused, or the page just refreshed) and nothing to show: review
@@ -767,7 +973,7 @@
       const first = $("laps-list").querySelector("div[data-f]"); if (first && !shownLap()) first.click();
     } finally { reviewing = false; }
   }
-  setTimeout(() => { if (Date.now() - lastPacketAt > 2000 && !shownLap()) reviewFromDisk(); }, 2500);
+  // don't auto-review from disk - stay on live view
   (function frame() { drawMap(); requestAnimationFrame(frame); })();
 </script>
 </body>
