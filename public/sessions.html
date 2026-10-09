@@ -50,6 +50,7 @@
   <a href="/compare">compare</a>
   <a href="/setups">setups</a>
   <button id="valid-only">VALID ONLY</button>
+  <button id="sort-toggle">SORT: LAP #</button>
 </div>
 
 <div id="summary" class="summary"></div>
@@ -59,6 +60,7 @@
 const $ = (id) => document.getElementById(id);
 let allLaps = [];
 let validOnly = localStorage.getItem("validOnly") === "1";
+let sortByTime = localStorage.getItem("sortByTime") === "1";
 
 function formatTime(ms) {
   if (!ms || ms <= 0) return "--:--.---";
@@ -153,7 +155,7 @@ function render() {
       html += `</div>`;
 
       html += `<div class="laps-list" id="laps-${s.sessionUID}">`;
-      const sorted = [...s.laps].sort((a, b) => a.lapNum - b.lapNum);
+      const sorted = [...s.laps].sort((a, b) => sortByTime ? a.lapTimeMs - b.lapTimeMs : a.lapNum - b.lapNum);
       for (const lap of sorted) {
         const isBest = bestLap && lap.lapTimeMs === bestLap.lapTimeMs && lap.lapNum === bestLap.lapNum;
         const isInvalid = !isValid(lap);
@@ -189,6 +191,16 @@ async function init() {
     validOnly = !validOnly;
     localStorage.setItem("validOnly", validOnly ? "1" : "0");
     $("valid-only").className = validOnly ? "on" : "";
+    render();
+  };
+
+  $("sort-toggle").textContent = sortByTime ? "SORT: TIME" : "SORT: LAP #";
+  $("sort-toggle").className = sortByTime ? "on" : "";
+  $("sort-toggle").onclick = () => {
+    sortByTime = !sortByTime;
+    localStorage.setItem("sortByTime", sortByTime ? "1" : "0");
+    $("sort-toggle").textContent = sortByTime ? "SORT: TIME" : "SORT: LAP #";
+    $("sort-toggle").className = sortByTime ? "on" : "";
     render();
   };
 
